@@ -1,0 +1,38 @@
+{
+  "name": "govinfo-ai",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Zero-hallucination compliance intelligence platform",
+  "author": "GovInfo AI Team",
+  "license": "MIT",
+  "scripts": {
+    "dev": "ng serve",
+    "build": "ng build",
+    "preview": "ng serve --configuration=production",
+    "test": "echo \"No tests specified\"",
+    "lint": "echo \"No linting configured\""
+  },
+  "dependencies": {
+    "@angular/animations": "^21.1.0",
+    "@angular/common": "^21.1.0",
+    "@angular/compiler": "^21.1.0",
+    "@angular/core": "^21.1.0",
+    "@angular/forms": "^21.1.3",
+    "@angular/platform-browser": "^21.1.0",
+    "@angular/platform-browser-dynamic": "^21.1.0",
+    "@angular/router": "^21.1.0",
+    "@google/genai": "^1.40.0",
+    "rxjs": "^7.8.2",
+    "tslib": "^2.6.2",
+    "zone.js": "^0.14.3"
+  },
+  "devDependencies": {
+    "@angular/build": "^21.1.0",
+    "@angular/cli": "^21.1.0",
+    "@angular/compiler-cli": "^21.1.0",
+    "@types/node": "^22.14.0",
+    "tailwindcss": "latest",
+    "typescript": "~5.8.2"
+  }
+}

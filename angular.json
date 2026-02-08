@@ -1,0 +1,71 @@
+{
+    "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+    "version": 1,
+    "newProjectRoot": "",
+    "projects": {
+      "govinfo-ai": {
+        "projectType": "application",
+        "root": "",
+        "sourceRoot": "./",
+        "prefix": "app",
+        "architect": {
+          "build": {
+            "builder": "@angular/build:application",
+            "options": {
+              "outputPath": {
+                "base": "./dist",
+                "browser": "."
+              },
+              "browser": "index.tsx",
+              "tsConfig": "tsconfig.json",
+              "assets": [],
+              "styles": [],
+              "scripts": []
+            },
+            "configurations": {
+              "production": {
+                "outputHashing": "all",
+                "optimization": true,
+                "sourceMap": false,
+                "namedChunks": false,
+                "extractLicenses": true,
+                "budgets": [
+                  {
+                    "type": "initial",
+                    "maximumWarning": "2mb",
+                    "maximumError": "5mb"
+                  }
+                ]
+              },
+              "development": {
+                "optimization": false,
+                "extractLicenses": false,
+                "sourceMap": true,
+                "namedChunks": true
+              }
+            },
+            "defaultConfiguration": "production"
+          },
+          "serve": {
+            "builder": "@angular/build:dev-server",
+            "options": {
+              "port": 3000,
+              "host": "localhost"
+            },
+            "configurations": {
+              "production": {
+                "buildTarget": "govinfo-ai:build:production"
+              },
+              "development": {
+                "buildTarget": "govinfo-ai:build:development"
+              }
+            },
+            "defaultConfiguration": "development"
+          }
+        }
+      }
+    },
+    "cli": {
+      "analytics": "4335d06a-8e7c-4f2c-8b9c-c8291a1f7823"
+    }
+  }

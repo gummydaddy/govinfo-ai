@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GovInfo AI - Zero-hallucination compliance intelligence platform">
+  <meta name="keywords" content="government, compliance, AI, regulations, DPR, India">
+  <title>GovInfo AI - Compliance Intelligence Platform</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Custom Styles -->
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #000000;
+      color: #ffffff;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+    }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #1a1a1a;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #D32F2F;
+    }
+    
+    /* Firefox scrollbar */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: #333 #1a1a1a;
+    }
+    
+    /* Animation classes */
+    .animate-fadeIn {
+      animation: fadeIn 0.3s ease-in;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .animate-slideUp {
+      animation: slideUp 0.4s ease-out;
+    }
+    
+    @keyframes slideUp {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    
+    /* Line clamp utility */
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    
+    .line-clamp-3 {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  </style>
+
+  <!-- Import Maps for ES Modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "rxjs": "https://esm.sh/rxjs@^7.8.2?conditions=es2015",
+      "rxjs/operators": "https://esm.sh/rxjs@^7.8.2/operators?conditions=es2015",
+      "rxjs/ajax": "https://esm.sh/rxjs@^7.8.2/ajax?conditions=es2015",
+      "rxjs/webSocket": "https://esm.sh/rxjs@^7.8.2/webSocket?conditions=es2015",
+      "rxjs/testing": "https://esm.sh/rxjs@^7.8.2/testing?conditions=es2015",
+      "rxjs/fetch": "https://esm.sh/rxjs@^7.8.2/fetch?conditions=es2015",
+      "@angular/compiler": "https://esm.sh/@angular/compiler@^21.1.3?external=rxjs",
+      "@angular/forms": "https://esm.sh/@angular/forms@^21.1.3?external=rxjs",
+      "@angular/platform-browser": "https://esm.sh/@angular/platform-browser@^21.1.3?external=rxjs",
+      "@google/genai": "https://esm.sh/@google/genai@^1.40.0?external=rxjs",
+      "@angular/common": "https://esm.sh/@angular/common@^21.1.3?external=rxjs",
+      "@angular/core": "https://esm.sh/@angular/core@^21.1.3?external=rxjs"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- Root Angular Component -->
+  <app-root></app-root>
+  
+  <!-- Loading Screen (optional) -->
+  <noscript>
+    <div style="display: flex; justify-content: center; align-items: center; height: 100vh; color: white;">
+      <p>JavaScript is required to run this application. Please enable JavaScript in your browser.</p>
+    </div>
+  </noscript>
+</body>
+</html>
