@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { StateService } from '../services/state.service';
+import { StateService } from '../services/state.services.js';
 import { AuthService } from '../services/auth.service';
 import { LanguageService } from '../services/language.service';
 

@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { StateService } from '../services/state.service';
+import { StateService } from '../services/state.services.js';
 import { UserContext } from '../models/interfaces';
 
 @Component({

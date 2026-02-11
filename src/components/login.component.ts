@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { StateService } from '../services/state.service';
+import { StateService } from '../services/state.services.js';
 import { AuthService } from '../services/auth.service';
 
 @Component({

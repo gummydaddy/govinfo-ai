@@ -2,7 +2,7 @@
 
 import { Injectable, inject } from '@angular/core';
 import { GoogleGenAI } from '@google/genai';
-import { StateService } from './state.service';
+import { StateService } from './state.services.js';
 import { Attachment, AIResponse } from '../models/interfaces';
 
 @Injectable({

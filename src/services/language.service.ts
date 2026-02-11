@@ -1,7 +1,7 @@
 // src/services/language.service.ts
 
 import { Injectable, inject } from '@angular/core';
-import { StateService } from './state.service';
+import { StateService } from './state.services.js';
 import { LanguageConfig } from '../models/interfaces';
 
 @Injectable({

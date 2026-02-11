@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { StateService } from '../services/state.service';
+import { StateService } from '../services/state.services.js';
 
 @Component({
   selector: 'app-onboarding',

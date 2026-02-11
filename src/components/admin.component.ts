@@ -3,7 +3,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { StateService } from '../services/state.service';
+import { StateService } from '../services/state.services.js';
 import { DocMetadata } from '../models/interfaces';
 
 @Component({
@@ -33,52 +33,160 @@ import { DocMetadata } from '../models/interfaces';
           <!-- LEFT COLUMN: Configuration & Upload -->
           <div class="space-y-8">
             
-            <!-- API Key Configuration -->
+            <!-- API Key Configuration -->            
+            <!-- API Key Configuration - Multi-Provider -->
             <div class="border border-[#D32F2F] p-6 bg-black">
-              <h2 class="text-xl font-bold mb-4 text-[#D32F2F]">1. System Configuration</h2>
-              
+              <h2 class="text-xl font-bold mb-4 text-[#D32F2F]">1. AI Provider Configuration</h2>
+              <p class="text-xs text-gray-500 mb-4">Configure one or more AI providers. The system will automatically use the first available provider.</p>
+  
               <!-- Gemini API Key -->
-              <div class="space-y-4 mb-6">
-                <label class="block text-sm text-gray-400">Gemini API Key</label>
+              <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
+                <label class="block text-sm text-gray-400 flex items-center gap-2">
+                  <span class="w-24">🔷 Gemini</span>
+                  <span class="text-xs text-gray-600">(Free tier available)</span>
+                </label>
                 <div class="flex gap-2">
                   <input 
                     type="password" 
-                    [(ngModel)]="apiKeyInput"
-                    placeholder="Enter Google GenAI API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none"
+                    [(ngModel)]="apiKeys.gemini"
+                    placeholder="Enter Google Gemini API Key"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
                   >
                   <button 
-                    (click)="saveApiKey()"
-                    class="bg-[#D32F2F] text-white px-6 py-3 font-bold hover:bg-red-700 transition-colors"
+                    (click)="saveProviderKey('gemini')"
+                    class="bg-[#D32F2F] text-white px-6 py-3 font-bold hover:bg-red-700 transition-colors text-sm"
                   >
                     SAVE
                   </button>
                 </div>
-                <p class="text-xs text-gray-500">
-                  🔑 Get your API key from: <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-[#D32F2F] underline">Google AI Studio</a>
+                <p class="text-xs text-gray-600">
+                  🔑 Get key: <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-[#D32F2F] underline">Google AI Studio</a>
                 </p>
               </div>
 
-              <!-- Google Maps API Key -->
-              <div class="space-y-4">
-                <label class="block text-sm text-gray-400">Google Maps API Key (Optional)</label>
+              <!-- OpenRouter API Key -->
+              <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
+                <label class="block text-sm text-gray-400 flex items-center gap-2">
+                  <span class="w-24">🔶 OpenRouter</span>
+                  <span class="text-xs text-gray-600">(200+ models, $5 min)</span>
+                </label>
                 <div class="flex gap-2">
                   <input 
                     type="password" 
-                    [(ngModel)]="mapsKeyInput"
-                    placeholder="Enter Google Maps API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none"
+                    [(ngModel)]="apiKeys.openrouter"
+                    placeholder="Enter OpenRouter API Key"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
                   >
                   <button 
-                    (click)="saveMapsKey()"
-                    class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors"
+                    (click)="saveProviderKey('openrouter')"
+                    class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
                   >
                     SAVE
                   </button>
                 </div>
-                <p class="text-xs text-gray-500">
-                  🗺️ Required for live location search features
+                <p class="text-xs text-gray-600">
+                  🔑 Get key: <a href="https://openrouter.ai/keys" target="_blank" class="text-[#D32F2F] underline">OpenRouter Keys</a>
                 </p>
+              </div>
+
+              <!-- OpenAI API Key -->
+              <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
+                <label class="block text-sm text-gray-400 flex items-center gap-2">
+                  <span class="w-24">🟢 OpenAI</span>
+                  <span class="text-xs text-gray-600">(GPT-4o, $5-20 recommended)</span>
+                </label>
+                <div class="flex gap-2">
+                  <input 
+                    type="password" 
+                    [(ngModel)]="apiKeys.openai"
+                    placeholder="Enter OpenAI API Key"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
+                  >
+                  <button 
+                    (click)="saveProviderKey('openai')"
+                    class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    SAVE
+                  </button>
+                </div>
+                <p class="text-xs text-gray-600">
+                  🔑 Get key: <a href="https://platform.openai.com/api-keys" target="_blank" class="text-[#D32F2F] underline">OpenAI Platform</a>
+                </p>
+              </div>
+
+              <!-- Anthropic API Key -->
+              <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
+                <label class="block text-sm text-gray-400 flex items-center gap-2">
+                  <span class="w-24">🟠 Anthropic</span>
+                  <span class="text-xs text-gray-600">(Claude 3.5, $5 min)</span>
+                </label>
+                <div class="flex gap-2">
+                  <input 
+                    type="password" 
+                    [(ngModel)]="apiKeys.anthropic"
+                    placeholder="Enter Anthropic API Key"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
+                  >
+                  <button 
+                    (click)="saveProviderKey('anthropic')"
+                    class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    SAVE
+                  </button>
+                </div>
+                <p class="text-xs text-gray-600">
+                  🔑 Get key: <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-[#D32F2F] underline">Anthropic Console</a>
+                </p>
+              </div>
+
+              <!-- Groq API Key -->
+              <div class="space-y-4">
+                <label class="block text-sm text-gray-400 flex items-center gap-2">
+                  <span class="w-24">⚡ Groq</span>
+                  <span class="text-xs text-gray-600">(Fast Llama, Free tier)</span>
+                </label>
+                <div class="flex gap-2">
+                  <input 
+                    type="password" 
+                    [(ngModel)]="apiKeys.groq"
+                    placeholder="Enter Groq API Key"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
+                  >
+                  <button 
+                    (click)="saveProviderKey('groq')"
+                    class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    SAVE
+                  </button>
+                </div>
+                <p class="text-xs text-gray-600">
+                  🔑 Get key: <a href="https://console.groq.com/keys" target="_blank" class="text-[#D32F2F] underline">Groq Console</a>
+                </p>
+              </div>
+
+              <!-- Status Indicator -->
+              <div class="mt-6 pt-6 border-t border-gray-800">
+                <div class="text-xs text-gray-500 mb-2">CONFIGURED PROVIDERS:</div>
+                <div class="flex gap-2 flex-wrap">
+                  @if (apiKeys.gemini) {
+                    <span class="bg-blue-900/30 text-blue-400 px-2 py-1 text-xs rounded">Gemini ✓</span>
+                  }
+                  @if (apiKeys.openrouter) {
+                    <span class="bg-orange-900/30 text-orange-400 px-2 py-1 text-xs rounded">OpenRouter ✓</span>
+                  }
+                  @if (apiKeys.openai) {
+                    <span class="bg-green-900/30 text-green-400 px-2 py-1 text-xs rounded">OpenAI ✓</span>
+                  }
+                  @if (apiKeys.anthropic) {
+                    <span class="bg-purple-900/30 text-purple-400 px-2 py-1 text-xs rounded">Anthropic ✓</span>
+                  }
+                  @if (apiKeys.groq) {
+                    <span class="bg-yellow-900/30 text-yellow-400 px-2 py-1 text-xs rounded">Groq ✓</span>
+                  }
+                  @if (!apiKeys.gemini && !apiKeys.openrouter && !apiKeys.openai && !apiKeys.anthropic && !apiKeys.groq) {
+                    <span class="text-gray-600 text-xs">No providers configured yet</span>
+                  }
+                </div>
               </div>
             </div>
 
@@ -360,7 +468,16 @@ import { DocMetadata } from '../models/interfaces';
 export class AdminComponent {
   stateService = inject(StateService);
   
-  apiKeyInput = '';
+  //apiKeyInput = '';
+  // Multi-provider API Keys
+  apiKeys = {
+    gemini: '',
+    openrouter: '',
+    openai: '',
+    anthropic: '',
+    groq: ''
+  };
+
   mapsKeyInput = '';
   searchQuery = '';
   tagsInput = '';
@@ -381,21 +498,34 @@ export class AdminComponent {
   };
 
   constructor() {
-    this.apiKeyInput = this.stateService.apiKey();
+    //this.apiKeyInput = this.stateService.apiKey();
+      // Load all provider keys
+    this.apiKeys.gemini = this.stateService.getApiKey('gemini');
+    this.apiKeys.openrouter = this.stateService.getApiKey('openrouter');
+    this.apiKeys.openai = this.stateService.getApiKey('openai');
+    this.apiKeys.anthropic = this.stateService.getApiKey('anthropic');
+    this.apiKeys.groq = this.stateService.getApiKey('groq');
+
     this.mapsKeyInput = this.stateService.googleMapsApiKey();
   }
 
-  // Configuration Methods
-  saveApiKey() {
-    if (!this.apiKeyInput.trim()) {
-      alert('Please enter an API key');
+  saveProviderKey(provider: 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq') {
+    const key = this.apiKeys[provider];
+    
+    if (!key || !key.trim()) {
+      this.stateService.addNotification({
+        type: 'warning',
+        message: `Please enter a ${provider} API key`,
+        duration: 2000
+      });
       return;
     }
     
-    this.stateService.setApiKey(this.apiKeyInput);
+    this.stateService.setProviderApiKey(provider, key.trim());
+    
     this.stateService.addNotification({
       type: 'success',
-      message: 'Gemini API Key saved successfully',
+      message: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API Key saved successfully`,
       duration: 3000
     });
   }

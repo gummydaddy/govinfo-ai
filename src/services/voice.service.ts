@@ -1,7 +1,7 @@
 // src/services/voice.service.ts
 
 import { Injectable, inject, signal } from '@angular/core';
-import { StateService } from './state.service';
+import { StateService } from './state.services.js';
 
 @Injectable({
   providedIn: 'root'

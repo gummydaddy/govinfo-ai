@@ -3,8 +3,8 @@
 import { Component, inject, signal, ElementRef, ViewChild, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { StateService } from '../services/state.service';
-import { AiService } from '../services/ai.service';
+import { StateService } from '../services/state.services.js';
+import { AiService } from '../services/ai.services.js';
 import { VoiceService } from '../services/voice.service';
 import { LanguageService } from '../services/language.service';
 import { Attachment } from '../models/interfaces';
