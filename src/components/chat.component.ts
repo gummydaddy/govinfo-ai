@@ -219,11 +219,11 @@ import { MarkdownPipe } from '../pipes/markdown.pipe';
           @if (isThinking()) {
             <div class="flex flex-col items-start w-full animate-pulse">
               <div class="text-xs text-[#D32F2F] mb-1 ml-1 font-bold">GOVINFO AI</div>
-              <div class="bg-black border border-[#D32F2F] p-4 w-64">
+              <div class="bg-black border border-[#D32F2F] p-4 w-auto min-w-64">
                 <div class="h-2 bg-gray-800 w-3/4 mb-2"></div>
                 <div class="h-2 bg-gray-800 w-1/2"></div>
                 <div class="mt-2 text-xs text-[#D32F2F] font-mono">
-                  > ANALYZING SOURCES & DATA...
+                  🤖 {{ getActiveProviderDisplay() }}
                 </div>
               </div>
             </div>
@@ -520,14 +520,18 @@ export class ChatComponent {
 
     this.isThinking.set(true);
 
-    // Call AI
-    const response = await this.aiService.sendMessage(
-      text, 
-      attachments, 
-      this.useLiveSearch
-    );
+    // Detect which provider will be used
+    const provider = this.aiService.getPrimaryProvider();
+    if (provider) {
+      this.activeProvider.set(provider);
+    }
+
+    // Call AI with search flag
+    const response = await this.aiService.sendMessage(text, attachments, this.useLiveSearch);
 
     this.isThinking.set(false);
+    this.activeProvider.set('');
+
 
     // Add AI response
     this.stateService.addMessage({
@@ -606,5 +610,23 @@ export class ChatComponent {
     if (confirm('Delete this project? This cannot be undone.')) {
       this.stateService.deleteProject(id);
     }
+  }
+
+  activeProvider = signal<string>('');
+  
+  // Method to get provider display name
+  getActiveProviderDisplay(): string {
+    const provider = this.activeProvider();
+    if (!provider) return '> ANALYZING SOURCES & DATA...';
+    
+    const providerNames: Record<string, string> = {
+      'gemini': 'Processing with Gemini Flash...',
+      'openrouter': 'Processing with OpenRouter GPT-4o...',
+      'openai': 'Processing with OpenAI GPT-4o...',
+      'anthropic': 'Processing with Claude 3.5 Sonnet...',
+      'groq': 'Processing with Groq Llama 3.3...'
+    };
+    
+    return providerNames[provider] || '> ANALYZING SOURCES & DATA...';
   }
 }

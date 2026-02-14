@@ -5,13 +5,17 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StateService } from '../services/state.services.js';
 import { DocMetadata } from '../models/interfaces';
+import { AuthService } from '../services/auth.service.js';
+import { User } from '../models/interfaces.js';
+
+
 
 @Component({
   selector: 'app-admin',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="min-h-screen bg-black text-white p-8 font-sans">
+    <div class="min-h-screen max-h-screen overflow-y-auto bg-black text-white p-8 font-sans">
       <div class="max-w-7xl mx-auto">
         
         <!-- Header -->
@@ -28,7 +32,7 @@ import { DocMetadata } from '../models/interfaces';
           </button>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-20">
           
           <!-- LEFT COLUMN: Configuration & Upload -->
           <div class="space-y-8">
@@ -58,6 +62,13 @@ import { DocMetadata } from '../models/interfaces';
                   >
                     SAVE
                   </button>
+                  <button 
+                    (click)="clearProviderKey('gemini')"
+                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
+                    title="Clear this API key"
+                  >
+                    🗑️
+                  </button>
                 </div>
                 <p class="text-xs text-gray-600">
                   🔑 Get key: <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-[#D32F2F] underline">Google AI Studio</a>
@@ -82,6 +93,13 @@ import { DocMetadata } from '../models/interfaces';
                     class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
                   >
                     SAVE
+                  </button>
+                  <button 
+                    (click)="clearProviderKey('openrouter')"
+                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
+                    title="Clear this API key"
+                  >
+                    🗑️
                   </button>
                 </div>
                 <p class="text-xs text-gray-600">
@@ -108,6 +126,13 @@ import { DocMetadata } from '../models/interfaces';
                   >
                     SAVE
                   </button>
+                  <button 
+                    (click)="clearProviderKey('openai')"
+                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
+                    title="Clear this API key"
+                  >
+                    🗑️
+                  </button>
                 </div>
                 <p class="text-xs text-gray-600">
                   🔑 Get key: <a href="https://platform.openai.com/api-keys" target="_blank" class="text-[#D32F2F] underline">OpenAI Platform</a>
@@ -133,6 +158,13 @@ import { DocMetadata } from '../models/interfaces';
                   >
                     SAVE
                   </button>
+                  <button 
+                    (click)="clearProviderKey('anthropic')"
+                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
+                    title="Clear this API key"
+                  >
+                    🗑️
+                  </button>
                 </div>
                 <p class="text-xs text-gray-600">
                   🔑 Get key: <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-[#D32F2F] underline">Anthropic Console</a>
@@ -157,6 +189,13 @@ import { DocMetadata } from '../models/interfaces';
                     class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
                   >
                     SAVE
+                  </button>
+                  <button 
+                    (click)="clearProviderKey('groq')"
+                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
+                    title="Clear this API key"
+                  >
+                    🗑️
                   </button>
                 </div>
                 <p class="text-xs text-gray-600">
@@ -185,6 +224,74 @@ import { DocMetadata } from '../models/interfaces';
                   }
                   @if (!apiKeys.gemini && !apiKeys.openrouter && !apiKeys.openai && !apiKeys.anthropic && !apiKeys.groq) {
                     <span class="text-gray-600 text-xs">No providers configured yet</span>
+                  }
+                </div>
+              </div>
+            </div>
+
+
+            <!-- Admin User Management -->
+            <div class="border border-[#D32F2F] p-6 bg-black mt-8">
+              <h2 class="text-xl font-bold mb-4 text-[#D32F2F]">Admin User Management</h2>
+              <p class="text-xs text-gray-500 mb-4">Create new admin accounts</p>
+  
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-xs text-gray-400 mb-1">Admin Name</label>
+                  <input 
+                    [(ngModel)]="newAdmin.name"
+                    placeholder="Enter admin name"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                  >
+                </div>
+    
+                <div>
+                  <label class="block text-xs text-gray-400 mb-1">Admin Email</label>
+                  <input 
+                    [(ngModel)]="newAdmin.email"
+                    type="email"
+                    placeholder="Enter admin email"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                  >
+                </div>
+    
+                <div>
+                  <label class="block text-xs text-gray-400 mb-1">Password</label>
+                  <input 
+                    [(ngModel)]="newAdmin.password"
+                    type="password"
+                    placeholder="Enter password"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                  >
+                </div>
+    
+                <button 
+                  (click)="createAdmin()"
+                  class="w-full border border-white text-white py-3 font-bold hover:bg-white hover:text-black transition-colors"
+                >
+                  CREATE ADMIN USER
+                </button>
+              </div>
+  
+              <!-- List of admins -->
+              <div class="mt-6 pt-6 border-t border-gray-800">
+                <div class="text-xs text-gray-500 mb-2">EXISTING ADMINS:</div>
+                <div class="space-y-2">
+                  @for (admin of getAdminUsers(); track admin.id) {
+                    <div class="flex justify-between items-center bg-[#111] p-2 text-xs">
+                      <div>
+                        <div class="text-white">{{ admin.name }}</div>
+                        <div class="text-gray-500">{{ admin.email }}</div>
+                      </div>
+                      @if (admin.email !== 'admin@govinfo.ai') {
+                        <button 
+                          (click)="removeAdmin(admin.id)"
+                          class="text-red-500 hover:text-red-400"
+                        >
+                          Remove
+                        </button>
+                      }
+                    </div>
                   }
                 </div>
               </div>
@@ -364,7 +471,7 @@ import { DocMetadata } from '../models/interfaces';
           </div>
 
           <!-- RIGHT COLUMN: Knowledge Base -->
-          <div class="border border-[#D32F2F] p-6 bg-black h-full flex flex-col">
+          <div class="border border-[#D32F2F] p-6 bg-black max-h-screen flex flex-col">
             <div class="flex justify-between items-center mb-4">
               <h2 class="text-xl font-bold text-[#D32F2F]">3. Knowledge Base</h2>
               <span class="text-xs text-gray-500">{{ stateService.documents().length }} documents</span>
@@ -741,4 +848,90 @@ To properly extract content from PDFs, DOCX, and images in production:
   private generateId(): string {
     return 'doc-' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
   }
+
+  clearProviderKey(provider: 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq') {
+    if (!confirm(`Are you sure you want to remove the ${provider} API key?`)) {
+      return;
+    }
+    
+    this.apiKeys[provider] = '';
+    this.stateService.clearProviderApiKey(provider);
+    
+    this.stateService.addNotification({
+      type: 'info',
+      message: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API Key removed`,
+      duration: 3000
+    });
+  }
+
+
+  // New admin form data
+  newAdmin = {
+    name: '',
+    email: '',
+    password: ''
+  };
+
+  // Inject AuthService
+  authService = inject(AuthService);
+  //constructor(private authService: AuthService) {}
+
+  // Create new admin
+  createAdmin() {
+    if (!this.newAdmin.name || !this.newAdmin.email || !this.newAdmin.password) {
+      this.stateService.addNotification({
+        type: 'warning',
+        message: 'Please fill in all fields',
+        duration: 2000
+      });
+      return;
+    }
+  
+    // Create user with admin role
+    const result = this.authService.createAdminUser(
+      this.newAdmin.name,
+      this.newAdmin.email,
+      this.newAdmin.password
+    );
+  
+    if (result.success) {
+      this.stateService.addNotification({
+        type: 'success',
+        message: `Admin user ${this.newAdmin.name} created successfully`,
+        duration: 3000
+      });
+    
+      // Reset form
+      this.newAdmin = { name: '', email: '', password: '' };
+    } else {
+      this.stateService.addNotification({
+        type: 'error',
+        message: result.error || 'Failed to create admin',
+        duration: 3000
+      });
+    }
+  }
+
+  // Get all admin users
+  getAdminUsers() {
+    const users = this.authService.getAllUsers();
+    //return users.filter(u => u.role === 'admin');
+    return users.filter((u: User) => u.role === 'admin');
+
+  }
+
+  // Remove admin user
+  removeAdmin(userId: string) {
+    if (!confirm('Are you sure you want to remove this admin user?')) {
+      return;
+    }
+  
+    this.authService.deleteUser(userId);
+    this.stateService.addNotification({
+      type: 'info',
+      message: 'Admin user removed',
+      duration: 3000
+    });
+  }
+
 }

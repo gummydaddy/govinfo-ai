@@ -1,368 +1,382 @@
-// src/services/ai.service.ts
+// src/services/ai.service.ts - Multi-Provider AI Service
 
 import { Injectable, inject } from '@angular/core';
-import { GoogleGenAI } from '@google/genai';
 import { StateService } from './state.services.js';
 import { Attachment, AIResponse } from '../models/interfaces';
 
+/**
+ * Supported AI Providers
+ */
+export type AIProvider = 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq';
+
+/**
+ * Multi-Provider AI Service
+ * Automatically detects which API keys are available and uses them
+ */
 @Injectable({
   providedIn: 'root'
 })
 export class AiService {
   private stateService = inject(StateService);
-  
+
   /**
-   * Send message to AI and get response
+   * Get available providers based on configured API keys
+   */
+  getAvailableProviders(): AIProvider[] {
+    const providers: AIProvider[] = [];
+    const keys = this.stateService.getAllApiKeys();
+
+    if (keys.gemini) providers.push('gemini');
+    if (keys.openrouter) providers.push('openrouter');
+    if (keys.openai) providers.push('openai');
+    if (keys.anthropic) providers.push('anthropic');
+    if (keys.groq) providers.push('groq');
+
+    return providers;
+  }
+
+  /**
+   * Get the primary provider (first available)
+   */
+  getPrimaryProvider(): AIProvider | null {
+    const available = this.getAvailableProviders();
+    return available.length > 0 ? available[0] : null;
+  }
+
+  /**
+   * Send message using the best available provider
    */
   async sendMessage(
     userMessage: string,
     attachments: Attachment[] = [],
-    useSearch: boolean = false
+    useSearch: boolean = false,
+    preferredProvider?: AIProvider
   ): Promise<AIResponse> {
-    const apiKey = this.stateService.apiKey();
-    
-    if (!apiKey) {
+    const provider = preferredProvider || this.getPrimaryProvider();
+
+    if (!provider) {
       return {
-        text: "⚠️ ERROR: No API Key configured. Please configure your Gemini API key in the Admin Panel.",
-        error: "No API key"
+        text: "ERROR: No AI provider configured. Please go to Admin Panel and add at least one API key (Gemini, OpenRouter, OpenAI, Anthropic, or Groq).",
+        error: 'No API key'
       };
     }
-    
-    const context = this.stateService.userContext();
-    const relevantDocs = this.stateService.relevantDocs();
-    const language = this.stateService.currentLanguage();
-    
-    // Construct RAG context from relevant documents
-    const contextString = relevantDocs.map(d => `
---- DOCUMENT START ---
-Title: ${d.title}
-Ministry: ${d.ministry}
-State: ${d.state}
-Type: ${d.type}
-Priority: ${d.priority}
-Content:
-${d.content}
---- DOCUMENT END ---
-    `).join('\n\n');
-    
-    // Build system instruction based on mode
-    let systemInstruction = '';
-    
-    if (useSearch) {
-      // Live search mode with Google Maps/Web
-      systemInstruction = this.buildSearchModeInstruction(context, language);
-    } else {
-      // RAG mode with knowledge base
-      systemInstruction = this.buildRAGModeInstruction(context, contextString, language);
-    }
-    
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-      
-      // Configure generation
-      const config: any = {
-        systemInstruction,
-        temperature: 0.1, // Low temperature for factual accuracy
-        topP: 0.95,
-        topK: 40,
-      };
-      
-      // Add tools if search enabled
-      if (useSearch) {
-        config.tools = [{ googleSearch: {} }];
-      }
-      
-      // Prepare content parts
-      const contentParts: any[] = [];
-      
-      // Add text message
-      if (userMessage && userMessage.trim()) {
-        contentParts.push({ text: userMessage });
-      }
-      
-      // Add attachments (images, PDFs, etc.)
-      if (attachments && attachments.length > 0) {
-        for (const att of attachments) {
-          const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
-          
-          contentParts.push({
-            inlineData: {
-              mimeType: att.mimeType,
-              data: base64Data
-            }
-          });
-        }
-      }
-      
-      // Generate response
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: { parts: contentParts },
-        config
-      });
-      
-      // Extract grounding sources if available
-      const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      const rawText = response.text || "No response generated.";
-      
-      // Parse follow-up actions
-      const { finalText, suggestions } = this.parseFollowUpActions(rawText);
-      
-      return {
-        text: finalText,
-        sources: sources || [],
-        suggestedActions: suggestions
-      };
-      
-    } catch (error: any) {
-      console.error("AI Service Error:", error);
-      
-      let errorMessage = "An error occurred while processing your request.";
-      
-      if (error.message?.includes('API key')) {
-        errorMessage = "Invalid API key. Please check your Gemini API key in the Admin Panel.";
-      } else if (error.message?.includes('quota')) {
-        errorMessage = "API quota exceeded. Please try again later or check your API usage.";
-      } else if (error.message?.includes('network')) {
-        errorMessage = "Network error. Please check your internet connection.";
-      }
-      
-      return {
-        text: `❌ ${errorMessage}`,
-        error: error.message || 'Unknown error'
-      };
+
+    // Route to appropriate provider
+    switch (provider) {
+      case 'gemini':
+        return this.sendMessageGemini(userMessage, attachments, useSearch);
+      case 'openrouter':
+        return this.sendMessageOpenRouter(userMessage, attachments);
+      case 'openai':
+        return this.sendMessageOpenAI(userMessage, attachments);
+      case 'anthropic':
+        return this.sendMessageAnthropic(userMessage, attachments);
+      case 'groq':
+        return this.sendMessageGroq(userMessage, attachments);
+      default:
+        return { text: "Unknown provider", error: 'Invalid provider' };
     }
   }
-  
+
   /**
-   * Generate DPR (Detailed Project Report)
+   * Build system prompt with RAG context
    */
-  async generateDPR(
-    projectDetails: any,
-    cadMapAttachment?: Attachment
+  private buildSystemPrompt(): string {
+    const context = this.stateService.userContext();
+    const relevantDocs = this.stateService.relevantDocs();
+
+    const contextString = relevantDocs.map(d => `
+--- SOURCE START ---
+Title: ${d.title}
+Ministry: ${d.ministry}
+Type: ${d.type}
+Content: ${d.content}
+--- SOURCE END ---
+    `).join('\n');
+
+    return `You are GovInfo AI, a specialized compliance intelligence agent for ${context.country} (${context.state || 'National level'}).
+User Sector: ${context.sector}.
+User Intent: ${context.intent}.
+
+CORE RULES:
+1. You must ONLY answer based on the provided source documents below.
+2. If the answer is not in the sources, say "No official source available."
+3. Do NOT hallucinate or use general knowledge outside the provided text.
+4. Your tone is professional and concise.
+5. Structure your response with:
+   - Direct Answer (1-2 sentences)
+   - Actionable Steps (numbered list)
+   - Required Documents (bullet points)
+   - Source References (cite document titles)
+
+FINAL OUTPUT:
+After your response, append "---FOLLOW_UP---" followed by 3 follow-up questions separated by "|".
+
+Example:
+[Your answer here]
+
+---FOLLOW_UP---
+How to apply? | What are the fees? | Download forms
+
+PROVIDED SOURCES:
+${contextString}`;
+  }
+
+  /**
+   * Parse follow-up actions from response
+   */
+  private parseFollowUpActions(text: string): { text: string; actions: string[] } {
+    const splitParts = text.split('---FOLLOW_UP---');
+    if (splitParts.length > 1) {
+      const cleanText = splitParts[0].trim();
+      const actionsStr = splitParts[1].trim();
+      const actions = actionsStr.split('|').map(s => s.trim()).filter(s => s.length > 0);
+      return { text: cleanText, actions };
+    }
+    return { text, actions: [] };
+  }
+
+  // =====================================================
+  // PROVIDER 1: Google Gemini
+  // =====================================================
+  private async sendMessageGemini(
+    userMessage: string,
+    attachments: Attachment[],
+    useSearch: boolean
   ): Promise<AIResponse> {
-    const apiKey = this.stateService.apiKey();
-    
-    if (!apiKey) {
-      return {
-        text: "ERROR: No API Key configured.",
-        error: "No API key"
-      };
-    }
-    
-    // Find reference DPR template
-    const referenceDPR = this.stateService.documents().find(
-      d => d.type === 'DPR Template'
-    );
-    
-    if (!referenceDPR) {
-      return {
-        text: "ERROR: No DPR template found in knowledge base.",
-        error: "No template"
-      };
-    }
-    
-    // Build specialized DPR prompt
-    const dprPrompt = `
-You are a specialized DPR (Detailed Project Report) generator.
+    const apiKey = this.stateService.getApiKey('gemini');
+    if (!apiKey) return { text: "Gemini API key not configured", error: 'No key' };
 
-Reference Template:
-${referenceDPR.content}
-
-User's Project Requirements:
-${JSON.stringify(projectDetails, null, 2)}
-
-TASK:
-Generate a comprehensive DPR following the structure of the reference template.
-Scale financial estimates based on the user's project capacity and land area.
-If a CAD map is provided, analyze the layout and comment on site suitability.
-
-STRUCTURE YOUR DPR WITH THESE SECTIONS:
-1. Executive Summary
-2. Project Overview
-3. Technical Specifications
-4. Process Description
-5. Land & Infrastructure Requirements
-6. Financial Projections (scaled from reference)
-7. Utilities & Services
-8. Environmental Compliance
-9. Statutory Approvals Required
-10. Implementation Timeline
-
-FINANCIAL SCALING LOGIC:
-- Base your estimates on the reference DPR costs
-- Scale proportionally to capacity/land area
-- Show clear cost breakdown
-- Include contingency (10-15%)
-
-OUTPUT FORMAT:
-Use clear markdown formatting.
-Include tables for financial breakdowns.
-At the end, append: ---FOLLOW_UP---
-Then suggest 3 next steps like: "Apply for environmental clearance | Arrange project finance | Hire consultant"
-    `;
-    
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const contentParts: any[] = [{ text: dprPrompt }];
-      
-      if (cadMapAttachment) {
-        const base64Data = cadMapAttachment.data.includes(',') 
-          ? cadMapAttachment.data.split(',')[1] 
-          : cadMapAttachment.data;
-        
-        contentParts.push({
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(apiKey);
+
+      const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+
+      // Build content
+      const parts: any[] = [];
+      if (userMessage) parts.push({ text: userMessage });
+
+      // Add attachments
+      attachments.forEach(att => {
+        const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
+        parts.push({
           inlineData: {
-            mimeType: cadMapAttachment.mimeType,
+            mimeType: att.mimeType,
             data: base64Data
           }
         });
-      }
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: { parts: contentParts },
-        config: {
-          temperature: 0.2,
-          topP: 0.9
-        }
       });
-      
-      const rawText = response.text || "Failed to generate DPR.";
-      const { finalText, suggestions } = this.parseFollowUpActions(rawText);
-      
+
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts }],
+        systemInstruction: this.buildSystemPrompt()
+      });
+
+      const response = await result.response;
+      const rawText = response.text();
+      const { text, actions } = this.parseFollowUpActions(rawText);
+
       return {
-        text: finalText,
-        suggestedActions: suggestions
+        text,
+        suggestedActions: actions,
+        sources: []
       };
-      
     } catch (error: any) {
-      console.error("DPR Generation Error:", error);
-      return {
-        text: `ERROR: Failed to generate DPR. ${error.message}`,
-        error: error.message
-      };
+      console.error('Gemini Error:', error);
+      return { text: `Gemini Error: ${error.message}`, error: error.message };
     }
   }
-  
-  // ========== PRIVATE METHODS ==========
-  
-  private buildRAGModeInstruction(context: any, docsContext: string, language: string): string {
-    const langInstruction = language !== 'en' 
-      ? `\nIMPORTANT: Respond in ${this.getLanguageName(language)} language.`
-      : '';
-    
-    return `
-You are GovInfo AI, a specialized compliance intelligence agent for ${context.country}, ${context.state || 'National level'}.
 
-USER PROFILE:
-- Sector: ${context.sector}
-- Intent: ${context.intent}
-- Language: ${language}${langInstruction}
+  // =====================================================
+  // PROVIDER 2: OpenRouter
+  // =====================================================
+  private async sendMessageOpenRouter(
+    userMessage: string,
+    attachments: Attachment[]
+  ): Promise<AIResponse> {
+    const apiKey = this.stateService.getApiKey('openrouter');
+    if (!apiKey) return { text: "OpenRouter API key not configured", error: 'No key' };
 
-CORE PRINCIPLES:
-1. **Zero-Hallucination**: You must ONLY answer based on the provided source documents below.
-2. **Source Verification**: If the answer is not in the sources, explicitly state: "No official source available in the knowledge base."
-3. **No External Knowledge**: Do NOT use general knowledge outside the provided documents.
-4. **Government-Serious Tone**: Professional, concise, clear, authoritative.
+    try {
+      const { default: OpenAI } = await import('openai');
+      const client = new OpenAI({
+        baseURL: 'https://openrouter.ai/api/v1',
+        apiKey: apiKey,
+        dangerouslyAllowBrowser: true
+      });
 
-RESPONSE STRUCTURE:
-1. **Direct Answer**: 1-2 sentence summary
-2. **Detailed Steps**: Numbered actionable steps
-3. **Required Documents**: Specific forms/certificates needed
-4. **Relevant Schemes**: Names of applicable policies/schemes
-5. **Source Citation**: Reference the specific document title(s) used
-6. **Next Steps**: 3 strategic follow-up actions
+      const messages: any[] = [
+        { role: 'system', content: this.buildSystemPrompt() }
+      ];
 
-SPECIAL PROTOCOLS:
+      // Build user message
+      if (attachments.length > 0) {
+        const content: any[] = [];
+        if (userMessage) content.push({ type: 'text', text: userMessage });
 
-A. DPR GENERATION:
-   If user asks to create a DPR or project report:
-   - First verify they have provided: Land details, CAD map, Circle rate
-   - If missing, politely request the missing items
-   - If provided, use the reference DPR template structure
-   - Scale financials based on capacity or land size
-   - Analyze uploaded CAD map for layout feasibility
+        attachments.forEach(att => {
+          if (att.mimeType.startsWith('image/')) {
+            content.push({ type: 'image_url', image_url: { url: att.data } });
+          }
+        });
 
-B. FOLLOW-UP SUGGESTIONS:
-   At the END of every response, append a hidden block:
-   
-   ---FOLLOW_UP---
-   Question 1 | Question 2 | Question 3
-   
-   These should be SHORT, SPECIFIC follow-up questions or actions.
-   Example: "How to apply for Udyam? | What are the processing fees? | Download application form"
+        messages.push({ role: 'user', content });
+      } else {
+        messages.push({ role: 'user', content: userMessage });
+      }
 
-PROVIDED KNOWLEDGE BASE:
-${docsContext}
+      const response = await client.chat.completions.create({
+        model: 'openai/gpt-4o',
+        messages,
+        temperature: 0.1
+      });
 
-Remember: Stick to the sources. Be precise. Cite your references.
-    `;
-  }
-  
-  private buildSearchModeInstruction(context: any, language: string): string {
-    const langInstruction = language !== 'en' 
-      ? `\nRespond in ${this.getLanguageName(language)} language.`
-      : '';
-    
-    return `
-You are GovInfo AI with live web search and maps access.
+      const rawText = response.choices[0]?.message?.content || "No response";
+      const { text, actions } = this.parseFollowUpActions(rawText);
 
-USER CONTEXT: ${context.country}, ${context.state}, ${context.sector}${langInstruction}
-
-CAPABILITIES:
-- Real-time web search via Google Search tool
-- Location data and government office addresses
-- Current policies and recent updates
-- Circle rates and property valuations
-
-USAGE:
-- Use search for current information not in knowledge base
-- Find government office locations, contact details
-- Check recent policy updates or news
-- Verify current circle rates if user needs for DPR
-
-OUTPUT FORMAT:
-- Integrate search results naturally into compliance guidance
-- Cite sources when using web data
-- End with: ---FOLLOW_UP--- followed by 3 next-step suggestions (pipe-separated)
-
-If generating DPR and circle rate not provided, search for it and clearly state it's an estimate from web.
-    `;
-  }
-  
-  private parseFollowUpActions(rawText: string): { finalText: string; suggestions: string[] } {
-    const parts = rawText.split('---FOLLOW_UP---');
-    
-    if (parts.length > 1) {
-      const finalText = parts[0].trim();
-      const suggestionStr = parts[1].trim();
-      const suggestions = suggestionStr
-        .split('|')
-        .map(s => s.trim())
-        .filter(s => s.length > 0 && s.length < 100) // Filter out invalid suggestions
-        .slice(0, 3); // Max 3 suggestions
-      
-      return { finalText, suggestions };
+      return { text, suggestedActions: actions };
+    } catch (error: any) {
+      console.error('OpenRouter Error:', error);
+      return { text: `OpenRouter Error: ${error.message}`, error: error.message };
     }
-    
-    return { finalText: rawText, suggestions: [] };
   }
-  
-  private getLanguageName(code: string): string {
-    const languages: { [key: string]: string } = {
-      'en': 'English',
-      'hi': 'Hindi',
-      'ta': 'Tamil',
-      'te': 'Telugu',
-      'kn': 'Kannada',
-      'ml': 'Malayalam',
-      'bn': 'Bengali',
-      'mr': 'Marathi',
-      'gu': 'Gujarati'
-    };
-    
-    return languages[code] || 'English';
+
+  // =====================================================
+  // PROVIDER 3: OpenAI Direct
+  // =====================================================
+  private async sendMessageOpenAI(
+    userMessage: string,
+    attachments: Attachment[]
+  ): Promise<AIResponse> {
+    const apiKey = this.stateService.getApiKey('openai');
+    if (!apiKey) return { text: "OpenAI API key not configured", error: 'No key' };
+
+    try {
+      const { default: OpenAI } = await import('openai');
+      const client = new OpenAI({
+        apiKey: apiKey,
+        dangerouslyAllowBrowser: true
+      });
+
+      const messages: any[] = [
+        { role: 'system', content: this.buildSystemPrompt() },
+        { role: 'user', content: userMessage }
+      ];
+
+      const response = await client.chat.completions.create({
+        model: 'gpt-4o',
+        messages,
+        temperature: 0.1
+      });
+
+      const rawText = response.choices[0]?.message?.content || "No response";
+      const { text, actions } = this.parseFollowUpActions(rawText);
+
+      return { text, suggestedActions: actions };
+    } catch (error: any) {
+      console.error('OpenAI Error:', error);
+      return { text: `OpenAI Error: ${error.message}`, error: error.message };
+    }
+  }
+
+  // =====================================================
+  // PROVIDER 4: Anthropic Claude
+  // =====================================================
+  private async sendMessageAnthropic(
+    userMessage: string,
+    attachments: Attachment[]
+  ): Promise<AIResponse> {
+    const apiKey = this.stateService.getApiKey('anthropic');
+    if (!apiKey) return { text: "Anthropic API key not configured", error: 'No key' };
+
+    try {
+      const { default: Anthropic } = await import('@anthropic-ai/sdk');
+      const client = new Anthropic({
+        apiKey: apiKey,
+        dangerouslyAllowBrowser: true
+      });
+
+      const response = await client.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 2000,
+        system: this.buildSystemPrompt(),
+        messages: [
+          { role: 'user', content: userMessage }
+        ]
+      });
+
+      const rawText = response.content[0].type === 'text' ? response.content[0].text : "No response";
+      const { text, actions } = this.parseFollowUpActions(rawText);
+
+      return { text, suggestedActions: actions };
+    } catch (error: any) {
+      console.error('Anthropic Error:', error);
+      return { text: `Anthropic Error: ${error.message}`, error: error.message };
+    }
+  }
+
+  // =====================================================
+  // PROVIDER 5: Groq
+  // =====================================================
+  private async sendMessageGroq(
+    userMessage: string,
+    attachments: Attachment[]
+  ): Promise<AIResponse> {
+    const apiKey = this.stateService.getApiKey('groq');
+    if (!apiKey) return { text: "Groq API key not configured", error: 'No key' };
+
+    try {
+      const { default: Groq } = await import('groq-sdk');
+      const client = new Groq({
+        apiKey: apiKey,
+        dangerouslyAllowBrowser: true
+      });
+
+      const response = await client.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: this.buildSystemPrompt() },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.1
+      });
+
+      const rawText = response.choices[0]?.message?.content || "No response";
+      const { text, actions } = this.parseFollowUpActions(rawText);
+
+      return { text, suggestedActions: actions };
+    } catch (error: any) {
+      console.error('Groq Error:', error);
+      return { text: `Groq Error: ${error.message}`, error: error.message };
+    }
+  }
+
+  // =====================================================
+  // DPR Generation (uses primary provider)
+  // =====================================================
+  async generateDPR(input: {
+    landDetails: string;
+    cadMap?: string;
+    circleRate?: string;
+    capacity?: string;
+  }): Promise<AIResponse> {
+    const provider = this.getPrimaryProvider();
+    if (!provider) {
+      return { text: "No AI provider configured", error: 'No key' };
+    }
+
+    const dprPrompt = `Generate a comprehensive DPR for:
+Land: ${input.landDetails}
+Circle Rate: ${input.circleRate || 'TBD'}
+Capacity: ${input.capacity || 'TBD'}
+
+Include: Executive Summary, Site Analysis, Technical Specs, Financial Projections, Timeline, Risk Analysis.`;
+
+    return this.sendMessage(dprPrompt, input.cadMap ? [{
+      name: 'cad-map.jpg',
+      mimeType: 'image/jpeg',
+      data: input.cadMap
+    }] : [], false, provider);
   }
 }

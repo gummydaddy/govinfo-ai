@@ -254,10 +254,28 @@ export class AuthService {
     
     return { success: true, message: 'Account deleted successfully' };
   }
+
+  private getUsers(): User[] {
+    const usersStr = localStorage.getItem('govinfo_users');
+    if (!usersStr) return [];
+  
+    try {
+      return JSON.parse(usersStr) as User[];
+    } catch (e) {
+      console.error('Failed to parse users', e);
+      return [];
+    }
+  }
+
+  getAllUsers(): User[] {
+    return this.getUsers();
+  }
+  
+  
   
   // ========== PRIVATE METHODS ==========
-  
-  private getUsers(): User[] {
+  /*
+  getUsers(): User[] {
     const usersStr = localStorage.getItem('govinfo_users');
     if (!usersStr) return [];
     
@@ -267,7 +285,8 @@ export class AuthService {
       console.error('Failed to parse users', e);
       return [];
     }
-  }
+  }*/
+
   
   private getPasswords(): { [userId: string]: string } {
     const passwordsStr = localStorage.getItem('govinfo_passwords');
@@ -303,4 +322,36 @@ export class AuthService {
     }
     return hash.toString(36);
   }
+
+  // Create admin user directly
+  createAdminUser(name: string, email: string, password: string): { success: boolean; error?: string } {
+    const users = this.getAllUsers();
+  
+    if (users.find(u => u.email === email)) {
+      return { success: false, error: 'User already exists' };
+    }
+
+    const newUser: User = {
+      id: this.generateUserId(),
+      name,
+      email,
+      //password: this.simpleHash(password),
+      role: 'admin', // Always create as admin
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    localStorage.setItem('govinfo_users', JSON.stringify(users));
+
+    return { success: true };
+  }
+
+  // Delete user
+  deleteUser(userId: string): void {
+    const users = this.getAllUsers();
+    const filtered = users.filter(u => u.id !== userId);
+    localStorage.setItem('govinfo_users', JSON.stringify(filtered));
+  }  
+
+
 }

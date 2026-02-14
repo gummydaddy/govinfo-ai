@@ -8,6 +8,7 @@ export interface User {
   email: string;
   name: string;
   role: 'user' | 'admin';
+  //password: string;
   createdAt: string;
   language?: string;
 }

@@ -169,6 +169,7 @@ export class SignupComponent {
         }, 1500);
       } else {
         this.message.set(result.message);
+        //this.message.set(result.error ?? '');
         this.messageType.set('error');
       }
     }, 300);
