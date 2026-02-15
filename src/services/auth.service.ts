@@ -343,6 +343,11 @@ export class AuthService {
     users.push(newUser);
     localStorage.setItem('govinfo_users', JSON.stringify(users));
 
+    // Save password hash (CRITICAL - was missing!)
+    const passwords = this.getPasswords();
+    passwords[newUser.id] = this.simpleHash(password);
+    localStorage.setItem('govinfo_passwords', JSON.stringify(passwords));
+
     return { success: true };
   }
 
