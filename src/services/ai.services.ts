@@ -1,7 +1,8 @@
-// src/services/ai.service.ts - Multi-Provider AI Service
+// src/services/ai.service.ts - Multi-Provider AI Service with Knowledgebase
 
 import { Injectable, inject } from '@angular/core';
 import { StateService } from './state.services.js';
+import { KnowledgebaseService } from './knowledgebase.service.js';
 import { Attachment, AIResponse } from '../models/interfaces';
 
 /**
@@ -12,12 +13,14 @@ export type AIProvider = 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'gro
 /**
  * Multi-Provider AI Service
  * Automatically detects which API keys are available and uses them
+ * Includes knowledgebase for instant responses to common questions
  */
 @Injectable({
   providedIn: 'root'
 })
 export class AiService {
   private stateService = inject(StateService);
+  private knowledgebase = inject(KnowledgebaseService);
 
   /**
    * Get available providers based on configured API keys
@@ -44,14 +47,59 @@ export class AiService {
   }
 
   /**
+   * Check if knowledgebase has a matching response
+   * Returns null if no match found (confidence below threshold)
+   */
+  private checkKnowledgebase(userMessage: string): AIResponse | null {
+    const context = this.stateService.userContext();
+    const match = this.knowledgebase.findMatch(userMessage, context);
+    
+    if (match) {
+      console.log(`[Knowledgebase] Match found with ${(match.confidence * 100).toFixed(0)}% confidence`);
+      return {
+        text: match.entry.answer,
+        suggestedActions: [],
+        sources: [],
+        fromKnowledgebase: true,
+        knowledgebaseConfidence: match.confidence
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Learn from AI response if it's valid
+   */
+  private learnFromResponse(userMessage: string, aiResponse: AIResponse): void {
+    if (aiResponse.error) return; // Don't learn from errors
+    
+    const context = this.stateService.userContext();
+    const learned = this.knowledgebase.learn(userMessage, aiResponse.text, context, 'ai-response');
+    
+    if (learned) {
+      console.log('[Knowledgebase] New entry learned from AI response');
+    }
+  }
+
+  /**
    * Send message using the best available provider
+   * Optionally skips knowledgebase check (for file uploads, DPR generation, etc.)
    */
   async sendMessage(
     userMessage: string,
     attachments: Attachment[] = [],
     useSearch: boolean = false,
-    preferredProvider?: AIProvider
+    preferredProvider?: AIProvider,
+    skipKnowledgebase: boolean = false
   ): Promise<AIResponse> {
+    // Check knowledgebase first (unless skipped or has attachments)
+    if (!skipKnowledgebase && attachments.length === 0) {
+      const cachedResponse = this.checkKnowledgebase(userMessage);
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+    }
+
     const provider = preferredProvider || this.getPrimaryProvider();
 
     if (!provider) {
@@ -61,21 +109,35 @@ export class AiService {
       };
     }
 
+    let response: AIResponse;
+
     // Route to appropriate provider
     switch (provider) {
       case 'gemini':
-        return this.sendMessageGemini(userMessage, attachments, useSearch);
+        response = await this.sendMessageGemini(userMessage, attachments, useSearch);
+        break;
       case 'openrouter':
-        return this.sendMessageOpenRouter(userMessage, attachments);
+        response = await this.sendMessageOpenRouter(userMessage, attachments);
+        break;
       case 'openai':
-        return this.sendMessageOpenAI(userMessage, attachments);
+        response = await this.sendMessageOpenAI(userMessage, attachments);
+        break;
       case 'anthropic':
-        return this.sendMessageAnthropic(userMessage, attachments);
+        response = await this.sendMessageAnthropic(userMessage, attachments);
+        break;
       case 'groq':
-        return this.sendMessageGroq(userMessage, attachments);
+        response = await this.sendMessageGroq(userMessage, attachments);
+        break;
       default:
-        return { text: "Unknown provider", error: 'Invalid provider' };
+        response = { text: "Unknown provider", error: 'Invalid provider' };
     }
+
+    // Learn from successful response (if has attachments, user likely wants AI analysis)
+    if (!response.error && attachments.length === 0) {
+      this.learnFromResponse(userMessage, response);
+    }
+
+    return response;
   }
 
   /**
@@ -377,6 +439,21 @@ Include: Executive Summary, Site Analysis, Technical Specs, Financial Projection
       name: 'cad-map.jpg',
       mimeType: 'image/jpeg',
       data: input.cadMap
-    }] : [], false, provider);
+    }] : [], false, provider, true); // skipKnowledgebase = true for DPR
+  }
+
+  /**
+   * Get knowledgebase statistics
+   */
+  getKnowledgebaseStats() {
+    return this.knowledgebase.stats();
+  }
+
+  /**
+   * Clear knowledgebase
+   */
+  clearKnowledgebase() {
+    this.knowledgebase.clear();
   }
 }
+

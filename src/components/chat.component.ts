@@ -92,6 +92,15 @@ import { MarkdownPipe } from '../pipes/markdown.pipe';
           </div>
           
           <div class="flex items-center gap-4">
+            <!-- Knowledgebase Stats (for admin) -->
+            @if (stateService.currentUser()?.role === 'admin' && knowledgebaseStats()) {
+              <div class="text-xs text-gray-500 hidden lg:block">
+                🧠 KB: {{ knowledgebaseStats()?.totalEntries }} entries | 
+                <span class="text-green-500">✓ {{ knowledgebaseStats()?.hits }}</span> / 
+                <span class="text-red-500">✗ {{ knowledgebaseStats()?.misses }}</span>
+              </div>
+            }
+            
             <!-- Voice Toggle -->
             <button 
               (click)="toggleVoiceMode()"
@@ -141,6 +150,9 @@ import { MarkdownPipe } from '../pipes/markdown.pipe';
               <p class="mt-2 text-gray-400">
                 <strong>💡 Features:</strong> Upload documents for analysis, generate DPRs with CAD maps, or enable live search for real-time data.
               </p>
+              <p class="mt-2 text-xs text-green-500">
+                🧠 Smart Cache: Repeated questions are answered instantly without API calls.
+              </p>
             </div>
           </div>
 
@@ -170,8 +182,16 @@ import { MarkdownPipe } from '../pipes/markdown.pipe';
             <!-- AI Message -->
             @if (msg.role === 'ai') {
               <div class="flex flex-col items-start w-full">
-                <div class="text-xs text-[#D32F2F] mb-1 ml-1 font-bold">GOVINFO AI</div>
-                <div class="bg-black text-white border border-[#D32F2F] p-6 max-w-3xl text-sm leading-relaxed shadow-[0_0_15px_rgba(211,47,47,0.1)]">
+                <div class="text-xs text-[#D32F2F] mb-1 ml-1 font-bold flex items-center gap-2">
+                  GOVINFO AI
+                  @if (msg.fromKnowledgebase && msg.knowledgebaseConfidence) {
+                    <span class="bg-green-900 text-green-300 text-[10px] px-2 py-0.5 rounded-full border border-green-700">
+                      ⚡ CACHED ({{ (msg.knowledgebaseConfidence * 100).toFixed(0) }}%)
+                    </span>
+                  }
+                </div>
+                <div class="bg-black text-white border border-[#D32F2F] p-6 max-w-3xl text-sm leading-relaxed shadow-[0_0_15px_rgba(211,47,47,0.1)]"
+                     [class.border-green-800]="msg.fromKnowledgebase">
                   <div [innerHTML]="msg.content | markdown"></div>
 
                   <!-- Grounding Sources -->
@@ -392,6 +412,9 @@ export class ChatComponent {
   
   currentAttachments: Attachment[] = [];
   
+  // Knowledgebase stats signal
+  knowledgebaseStats = signal<{ totalEntries: number; storageSizeKB: number; hits: number; misses: number } | null>(null);
+  
   @ViewChild('scrollContainer') scrollContainer!: ElementRef;
 
   constructor() {
@@ -400,6 +423,14 @@ export class ChatComponent {
       const history = this.stateService.chatHistory();
       setTimeout(() => this.scrollToBottom(), 100);
     });
+
+    // Load knowledgebase stats
+    this.loadKnowledgebaseStats();
+  }
+
+  loadKnowledgebaseStats() {
+    const stats = this.aiService.getKnowledgebaseStats();
+    this.knowledgebaseStats.set(stats);
   }
 
   scrollToBottom() {
@@ -533,14 +564,28 @@ export class ChatComponent {
     this.activeProvider.set('');
 
 
-    // Add AI response
+    // Add AI response with knowledgebase info
     this.stateService.addMessage({
       role: 'ai',
       content: response.text,
       sources: response.sources,
       suggestedActions: response.suggestedActions,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      fromKnowledgebase: response.fromKnowledgebase,
+      knowledgebaseConfidence: response.knowledgebaseConfidence
     });
+
+    // Show notification if response came from knowledgebase
+    if (response.fromKnowledgebase && response.knowledgebaseConfidence) {
+      this.stateService.addNotification({
+        type: 'info',
+        message: `⚡ Answered from cache (${(response.knowledgebaseConfidence * 100).toFixed(0)}% match) - saved API tokens!`,
+        duration: 2000
+      });
+      
+      // Refresh knowledgebase stats
+      this.loadKnowledgebaseStats();
+    }
 
     // Text-to-speech for AI response (if voice mode)
     if (this.voiceMode() && response.text && !response.error) {
@@ -630,3 +675,4 @@ export class ChatComponent {
     return providerNames[provider] || '> ANALYZING SOURCES & DATA...';
   }
 }
+

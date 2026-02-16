@@ -62,6 +62,8 @@ export interface ChatMessage {
   sources?: GroundingSource[];
   attachments?: Attachment[];
   suggestedActions?: string[];
+  fromKnowledgebase?: boolean;      // True if response came from knowledgebase
+  knowledgebaseConfidence?: number;  // Confidence score if from knowledgebase
 }
 
 /**
@@ -202,6 +204,8 @@ export interface AIResponse {
   sources?: any[]; // Using any[] to match Gemini API's flexible grounding chunk types
   suggestedActions?: string[];
   error?: string;
+  fromKnowledgebase?: boolean;      // True if response came from knowledgebase
+  knowledgebaseConfidence?: number;  // Confidence score of knowledgebase match
 }
 
 /**
@@ -228,3 +232,32 @@ export interface Notification {
   timestamp: number;
   duration?: number;
 }
+
+/**
+ * Knowledgebase entry for instant Q&A retrieval
+ */
+export interface KnowledgebaseEntry {
+  id: string;
+  question: string;           // Normalized question
+  questionTokens: string[];   // Tokenized for fast matching
+  answer: string;             // Cached answer
+  context: {                  // Context in which this was learned
+    country: string;
+    state: string;
+    sector: string;
+    intent: string;
+  };
+  usageCount: number;         // How many times used
+  lastUsed: number;           // Timestamp
+  createdAt: number;          // When learned
+  source: 'user-chat' | 'ai-response';
+}
+
+/**
+ * Knowledgebase search result
+ */
+export interface KnowledgebaseMatch {
+  entry: KnowledgebaseEntry;
+  confidence: number;         // 0-1 similarity score
+}
+
