@@ -8,30 +8,30 @@ import { StateService } from '../services/state.services.js';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="min-h-screen bg-black text-white p-8">
+    <div class="min-h-screen bg-black text-white p-4 sm:p-8 safe-area-top safe-area-bottom">
       <div class="max-w-5xl mx-auto">
         
         <!-- Header -->
-        <div class="flex justify-between items-center mb-10 border-b border-[#D32F2F] pb-4">
-          <h1 class="text-3xl font-bold tracking-tight">KNOWLEDGE BASE SEARCH</h1>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-10 border-b border-[#D32F2F] pb-4 gap-3">
+          <h1 class="text-xl sm:text-3xl font-bold tracking-tight">KNOWLEDGE BASE SEARCH</h1>
           <button 
             (click)="backToChat()" 
-            class="text-gray-400 hover:text-white transition-colors text-sm"
+            class="text-gray-400 hover:text-white transition-colors text-sm py-2 px-2 min-h-[44px]"
           >
             ← Back to Chat
           </button>
         </div>
 
         <!-- Search & Filter Bar -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <!-- Search Input -->
-          <div class="md:col-span-2">
+          <div class="sm:col-span-2 lg:col-span-2">
             <input 
               type="text" 
               [(ngModel)]="query" 
               (ngModelChange)="onQueryChange()"
               placeholder="Search by keywords (e.g., 'subsidy', 'tax', 'license')..."
-              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none"
+              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none min-h-[48px] text-base"
             >
           </div>
           
@@ -40,7 +40,7 @@ import { StateService } from '../services/state.services.js';
             <select 
               [(ngModel)]="filterType" 
               (ngModelChange)="onQueryChange()"
-              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none appearance-none"
+              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none appearance-none min-h-[48px] text-base"
             >
               <option value="">All Types</option>
               <option value="Policy">Policy</option>
@@ -56,7 +56,7 @@ import { StateService } from '../services/state.services.js';
             <select 
               [(ngModel)]="filterState" 
               (ngModelChange)="onQueryChange()"
-              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none appearance-none"
+              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none appearance-none min-h-[48px] text-base"
             >
               <option value="">All States</option>
               <option value="All">National</option>
@@ -68,7 +68,7 @@ import { StateService } from '../services/state.services.js';
         </div>
 
         <!-- Results Count -->
-        <div class="text-xs text-gray-500 uppercase tracking-widest mb-4">
+        <div class="text-xs text-gray-500 uppercase tracking-widest mb-4 px-1">
           {{ results().length }} DOCUMENTS FOUND
           @if (query()) {
             <span class="text-[#D32F2F]"> FOR "{{ query() }}"</span>
@@ -78,11 +78,11 @@ import { StateService } from '../services/state.services.js';
         <!-- Results -->
         <div class="space-y-4">
           @for (doc of results(); track doc.id) {
-            <div class="border border-gray-800 bg-[#0a0a0a] p-6 hover:border-[#D32F2F] transition-colors group">
+            <div class="border border-gray-800 bg-[#0a0a0a] p-4 sm:p-6 hover:border-[#D32F2F] transition-colors group">
               
               <!-- Header Row -->
-              <div class="flex justify-between items-start mb-2">
-                <div class="flex items-center gap-2">
+              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
                   <span class="bg-[#D32F2F] text-white text-[10px] px-2 py-0.5 font-bold uppercase">
                     {{ doc.type }}
                   </span>
@@ -99,13 +99,13 @@ import { StateService } from '../services/state.services.js';
               </div>
 
               <!-- Title -->
-              <h3 class="text-lg font-bold text-white mb-2">{{ doc.title }}</h3>
+              <h3 class="text-base sm:text-lg font-bold text-white mb-2">{{ doc.title }}</h3>
               
               <!-- Ministry -->
-              <p class="text-xs text-gray-400 mb-4 font-mono uppercase">{{ doc.ministry }}</p>
+              <p class="text-xs text-gray-400 mb-3 sm:mb-4 font-mono uppercase">{{ doc.ministry }}</p>
               
               <!-- Content Snippet -->
-              <div class="text-sm text-gray-300 leading-relaxed font-mono border-l-2 border-gray-700 pl-4 py-1">
+              <div class="text-sm text-gray-300 leading-relaxed font-mono border-l-2 border-gray-700 pl-3 sm:pl-4 py-1">
                 <div [innerHTML]="getSnippet(doc.content)"></div>
               </div>
 
@@ -121,12 +121,12 @@ import { StateService } from '../services/state.services.js';
               }
             </div>
           } @empty {
-            <div class="text-center py-20 border border-dashed border-gray-800 text-gray-500">
+            <div class="text-center py-12 sm:py-20 border border-dashed border-gray-800 text-gray-500 px-4">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4 opacity-50">
                 <circle cx="11" cy="11" r="8"/>
                 <path d="m21 21-4.3-4.3"/>
               </svg>
-              <p class="text-lg">NO DOCUMENTS MATCH YOUR CRITERIA</p>
+              <p class="text-base sm:text-lg">NO DOCUMENTS MATCH YOUR CRITERIA</p>
               <p class="text-sm mt-2">Try adjusting your filters or search terms</p>
             </div>
           }

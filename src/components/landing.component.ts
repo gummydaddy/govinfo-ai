@@ -12,11 +12,11 @@ import { LanguageService } from '../services/language.service';
     <div class="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center relative">
       
       <!-- Language Selector -->
-      <div class="absolute top-4 right-4">
+      <div class="absolute top-4 right-4 z-20">
         <select 
           [value]="stateService.currentLanguage()"
           (change)="changeLanguage($event)"
-          class="bg-[#111] border border-gray-700 text-white text-sm px-3 py-2 rounded focus:border-[#D32F2F] outline-none"
+          class="bg-[#111] border border-gray-700 text-white text-xs sm:text-sm px-2 sm:px-3 py-2 rounded focus:border-[#D32F2F] outline-none touch-manipulation"
         >
           @for (lang of languageService.availableLanguages; track lang.code) {
             <option [value]="lang.code">{{ lang.nativeName }}</option>
@@ -25,8 +25,8 @@ import { LanguageService } from '../services/language.service';
       </div>
 
       <!-- Logo -->
-      <div class="mb-8 border border-[#D32F2F] p-2 inline-block">
-        <div class="w-16 h-16 bg-[#D32F2F] flex items-center justify-center">
+      <div class="mb-6 sm:mb-8 border border-[#D32F2F] p-2 inline-block">
+        <div class="w-12 h-12 sm:w-16 sm:h-16 bg-[#D32F2F] flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
             <path d="M3 21h18"/>
             <path d="M5 21V7l8-4 8 4v14"/>
@@ -37,12 +37,12 @@ import { LanguageService } from '../services/language.service';
       </div>
 
       <!-- Title -->
-      <h1 class="text-5xl md:text-7xl font-bold tracking-tighter mb-4">
+      <h1 class="text-3xl sm:text-5xl md:text-7xl font-bold tracking-tighter mb-4 px-2">
         GOVINFO <span class="text-[#D32F2F]">AI</span>
       </h1>
       
       <!-- Description -->
-      <p class="text-lg md:text-xl text-gray-400 max-w-2xl mb-8">
+      <p class="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mb-6 sm:mb-8 px-4">
         {{ languageService.translate('welcome') }}<br>
         Zero-hallucination compliance intelligence. Build startups, factories, and NGOs with actionable guidance backed by verified government sources.
       </p>
@@ -60,10 +60,10 @@ import { LanguageService } from '../services/language.service';
       }
 
       <!-- Action Buttons -->
-      <div class="flex flex-col md:flex-row gap-4 w-full max-w-md">
+      <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full max-w-md px-4 sm:px-0">
         <button 
           (click)="start()" 
-          class="flex-1 bg-[#D32F2F] text-white py-4 px-8 font-bold text-lg hover:bg-red-700 transition-colors border border-[#D32F2F]"
+          class="flex-1 bg-[#D32F2F] text-white py-3 sm:py-4 px-6 sm:px-8 font-bold text-base sm:text-lg hover:bg-red-700 transition-colors border border-[#D32F2F] min-h-[48px]"
         >
           {{ languageService.translate('start_session') }}
         </button>
@@ -71,7 +71,7 @@ import { LanguageService } from '../services/language.service';
         @if (stateService.currentUser()?.role === 'admin') {
           <button 
             (click)="admin()" 
-            class="flex-1 bg-black text-white py-4 px-8 font-bold text-lg border border-gray-700 hover:border-white transition-colors"
+            class="flex-1 bg-black text-white py-3 sm:py-4 px-6 sm:px-8 font-bold text-base sm:text-lg border border-gray-700 hover:border-white transition-colors min-h-[48px]"
           >
             {{ languageService.translate('admin_panel') }}
           </button>
@@ -81,7 +81,7 @@ import { LanguageService } from '../services/language.service';
       <!-- Secondary Actions -->
       <button 
         (click)="search()" 
-        class="mt-4 text-gray-500 hover:text-white underline text-sm"
+        class="mt-4 text-gray-500 hover:text-white underline text-sm px-4 py-2 min-h-[44px]"
       >
         Access Knowledge Base Search
       </button>
@@ -90,21 +90,21 @@ import { LanguageService } from '../services/language.service';
       @if (stateService.currentUser()) {
         <button 
           (click)="logout()" 
-          class="mt-4 text-gray-500 hover:text-red-500 underline text-sm"
+          class="mt-4 text-gray-500 hover:text-red-500 underline text-sm px-4 py-2 min-h-[44px]"
         >
           {{ languageService.translate('logout') }}
         </button>
       } @else {
-        <div class="mt-6 flex gap-4">
+        <div class="mt-6 flex flex-col sm:flex-row gap-2 sm:gap-4 items-center">
           <button 
             (click)="login()" 
-            class="text-gray-500 hover:text-white underline text-sm"
+            class="text-gray-500 hover:text-white underline text-sm px-4 py-2 min-h-[44px]"
           >
             {{ languageService.translate('login') }}
           </button>
           <button 
             (click)="signup()" 
-            class="text-gray-500 hover:text-white underline text-sm"
+            class="text-gray-500 hover:text-white underline text-sm px-4 py-2 min-h-[44px]"
           >
             {{ languageService.translate('signup') }}
           </button>
@@ -112,7 +112,7 @@ import { LanguageService } from '../services/language.service';
       }
 
       <!-- System Status -->
-      <div class="mt-20 text-xs text-gray-600 font-mono">
+      <div class="mt-12 sm:mt-20 text-xs text-gray-600 font-mono text-center px-4">
         SYSTEM STATUS: ONLINE<br>
         JURISDICTION DATA: LOADED<br>
         DOCUMENTS: {{ stateService.documents().length }}

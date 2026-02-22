@@ -9,8 +9,8 @@ import { AuthService } from '../services/auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="min-h-screen bg-black text-white flex items-center justify-center p-4">
-      <div class="w-full max-w-md border border-[#D32F2F] p-8 relative">
+    <div class="min-h-screen bg-black text-white flex items-center justify-center p-3 sm:p-4 safe-area-top safe-area-bottom">
+      <div class="w-full max-w-md border border-[#D32F2F] p-4 sm:p-8 relative mx-2 sm:mx-0">
         
         <!-- Corner Decorations -->
         <div class="absolute top-0 left-0 w-2 h-2 bg-[#D32F2F]"></div>
@@ -19,14 +19,14 @@ import { AuthService } from '../services/auth.service';
         <div class="absolute bottom-0 right-0 w-2 h-2 bg-[#D32F2F]"></div>
 
         <!-- Header -->
-        <h2 class="text-3xl font-bold mb-2 tracking-tight">LOGIN</h2>
-        <p class="text-xs text-[#D32F2F] font-mono mb-8 uppercase tracking-widest">
+        <h2 class="text-2xl sm:text-3xl font-bold mb-2 tracking-tight">LOGIN</h2>
+        <p class="text-xs text-[#D32F2F] font-mono mb-6 sm:mb-8 uppercase tracking-widest">
           ACCESS YOUR ACCOUNT
         </p>
 
         <!-- Error Message -->
         @if (errorMessage()) {
-          <div class="mb-6 p-3 border border-red-500 bg-red-900/20 text-sm text-red-300">
+          <div class="mb-4 sm:mb-6 p-3 border border-red-500 bg-red-900/20 text-sm text-red-300 rounded">
             {{ errorMessage() }}
           </div>
         }
@@ -43,7 +43,7 @@ import { AuthService } from '../services/auth.service';
               name="email"
               placeholder="your.email@example.com"
               required
-              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none"
+              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none min-h-[48px] text-base"
             >
           </div>
 
@@ -56,12 +56,12 @@ import { AuthService } from '../services/auth.service';
               name="password"
               placeholder="Enter your password"
               required
-              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none"
+              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none min-h-[48px] text-base"
             >
           </div>
 
           <!-- Super Admin Hint -->
-          <div class="text-xs text-gray-600 border border-gray-800 p-2">
+          <div class="text-xs text-gray-600 border border-gray-800 p-2 rounded">
             <strong>Super Admin:</strong> admin@govinfo.ai / GovInfoAdmin@2024
           </div>
 
@@ -69,7 +69,7 @@ import { AuthService } from '../services/auth.service';
           <button 
             type="submit" 
             [disabled]="isLoading()"
-            class="w-full bg-[#D32F2F] text-white py-3 font-bold text-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            class="w-full bg-[#D32F2F] text-white py-3 font-bold text-base sm:text-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[48px] touch-manipulation"
           >
             @if (isLoading()) {
               LOGGING IN...
@@ -80,16 +80,16 @@ import { AuthService } from '../services/auth.service';
         </form>
 
         <!-- Footer Links -->
-        <div class="mt-6 text-center space-y-2">
+        <div class="mt-6 text-center space-y-3">
           <button 
             (click)="goToSignup()" 
-            class="text-gray-500 hover:text-white underline text-sm block w-full"
+            class="text-gray-500 hover:text-white underline text-sm block w-full py-2 min-h-[44px]"
           >
             Don't have an account? Sign Up
           </button>
           <button 
             (click)="goToLanding()" 
-            class="text-gray-500 hover:text-white underline text-sm block w-full"
+            class="text-gray-500 hover:text-white underline text-sm block w-full py-2 min-h-[44px]"
           >
             ← Back to Home
           </button>

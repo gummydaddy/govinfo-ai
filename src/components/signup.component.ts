@@ -9,8 +9,8 @@ import { AuthService } from '../services/auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="min-h-screen bg-black text-white flex items-center justify-center p-4">
-      <div class="w-full max-w-md border border-[#D32F2F] p-8 relative">
+    <div class="min-h-screen bg-black text-white flex items-center justify-center p-3 sm:p-4 safe-area-top safe-area-bottom">
+      <div class="w-full max-w-md border border-[#D32F2F] p-4 sm:p-8 relative mx-2 sm:mx-0">
         
         <!-- Corner Decorations -->
         <div class="absolute top-0 left-0 w-2 h-2 bg-[#D32F2F]"></div>
@@ -19,15 +19,15 @@ import { AuthService } from '../services/auth.service';
         <div class="absolute bottom-0 right-0 w-2 h-2 bg-[#D32F2F]"></div>
 
         <!-- Header -->
-        <h2 class="text-3xl font-bold mb-2 tracking-tight">SIGN UP</h2>
-        <p class="text-xs text-[#D32F2F] font-mono mb-8 uppercase tracking-widest">
+        <h2 class="text-2xl sm:text-3xl font-bold mb-2 tracking-tight">SIGN UP</h2>
+        <p class="text-xs text-[#D32F2F] font-mono mb-6 sm:mb-8 uppercase tracking-widest">
           CREATE YOUR ACCOUNT
         </p>
 
         <!-- Error/Success Message -->
         @if (message()) {
           <div 
-            class="mb-6 p-3 border text-sm"
+            class="mb-4 sm:mb-6 p-3 border text-sm rounded"
             [class.border-red-500]="messageType() === 'error'"
             [class.bg-red-900/20]="messageType() === 'error'"
             [class.text-red-300]="messageType() === 'error'"
@@ -51,7 +51,7 @@ import { AuthService } from '../services/auth.service';
               name="name"
               placeholder="John Doe"
               required
-              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none"
+              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none min-h-[48px] text-base"
             >
           </div>
 
@@ -64,7 +64,7 @@ import { AuthService } from '../services/auth.service';
               name="email"
               placeholder="your.email@example.com"
               required
-              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none"
+              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none min-h-[48px] text-base"
             >
           </div>
 
@@ -78,7 +78,7 @@ import { AuthService } from '../services/auth.service';
               placeholder="Minimum 8 characters"
               required
               minlength="8"
-              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none"
+              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none min-h-[48px] text-base"
             >
             <p class="text-xs text-gray-500 mt-1">Must be at least 8 characters</p>
           </div>
@@ -92,7 +92,7 @@ import { AuthService } from '../services/auth.service';
               name="confirmPassword"
               placeholder="Re-enter password"
               required
-              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none"
+              class="w-full bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] outline-none min-h-[48px] text-base"
             >
           </div>
 
@@ -100,7 +100,7 @@ import { AuthService } from '../services/auth.service';
           <button 
             type="submit" 
             [disabled]="isLoading()"
-            class="w-full bg-[#D32F2F] text-white py-3 font-bold text-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            class="w-full bg-[#D32F2F] text-white py-3 font-bold text-base sm:text-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[48px] touch-manipulation"
           >
             @if (isLoading()) {
               CREATING ACCOUNT...
@@ -111,16 +111,16 @@ import { AuthService } from '../services/auth.service';
         </form>
 
         <!-- Footer Links -->
-        <div class="mt-6 text-center space-y-2">
+        <div class="mt-6 text-center space-y-3">
           <button 
             (click)="goToLogin()" 
-            class="text-gray-500 hover:text-white underline text-sm block w-full"
+            class="text-gray-500 hover:text-white underline text-sm block w-full py-2 min-h-[44px]"
           >
             Already have an account? Login
           </button>
           <button 
             (click)="goToLanding()" 
-            class="text-gray-500 hover:text-white underline text-sm block w-full"
+            class="text-gray-500 hover:text-white underline text-sm block w-full py-2 min-h-[44px]"
           >
             ← Back to Home
           </button>

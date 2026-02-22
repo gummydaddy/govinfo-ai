@@ -29,8 +29,8 @@ import { OnboardingComponent } from './components/onboarding.component';
   template: `
     <div class="relative w-full h-screen overflow-hidden">
       
-      <!-- Notifications Container -->
-      <div class="fixed top-4 right-4 z-50 space-y-2">
+      <!-- Notifications Container - Mobile Responsive -->
+      <div class="fixed top-4 right-4 z-50 space-y-2 max-w-[calc(100vw-2rem)] w-full sm:w-auto sm:max-w-sm safe-area-top safe-area-right">
         @for (notification of stateService.notifications(); track notification.id) {
           <div 
             class="px-4 py-3 rounded border animate-slideUp max-w-sm"

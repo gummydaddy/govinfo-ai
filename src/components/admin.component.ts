@@ -15,60 +15,61 @@ import { User } from '../models/interfaces.js';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="min-h-screen max-h-screen overflow-y-auto bg-black text-white p-8 font-sans">
+    <div class="min-h-screen max-h-screen overflow-y-auto bg-black text-white p-4 sm:p-8 font-sans safe-area-top safe-area-bottom">
       <div class="max-w-7xl mx-auto">
         
         <!-- Header -->
-        <div class="flex justify-between items-center mb-10 border-b border-[#D32F2F] pb-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-10 border-b border-[#D32F2F] pb-4 gap-3">
           <div>
-            <h1 class="text-3xl font-bold tracking-tight">Admin Console</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">Admin Console</h1>
             <p class="text-sm text-gray-500 mt-1">System Configuration & Data Management</p>
           </div>
           <button 
             (click)="closeAdmin()" 
-            class="text-gray-400 hover:text-white transition-colors text-sm"
+            class="text-gray-400 hover:text-white transition-colors text-sm py-2 px-2 min-h-[44px]"
           >
             ← Exit to App
           </button>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-20">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 pb-20">
           
           <!-- LEFT COLUMN: Configuration & Upload -->
-          <div class="space-y-8">
+          <div class="space-y-6 sm:space-y-8">
             
-            <!-- API Key Configuration -->            
             <!-- API Key Configuration - Multi-Provider -->
-            <div class="border border-[#D32F2F] p-6 bg-black">
-              <h2 class="text-xl font-bold mb-4 text-[#D32F2F]">1. AI Provider Configuration</h2>
+            <div class="border border-[#D32F2F] p-4 sm:p-6 bg-black">
+              <h2 class="text-lg sm:text-xl font-bold mb-4 text-[#D32F2F]">1. AI Provider Configuration</h2>
               <p class="text-xs text-gray-500 mb-4">Configure one or more AI providers. The system will automatically use the first available provider.</p>
   
               <!-- Gemini API Key -->
               <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
                 <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-24">🔷 Gemini</span>
+                  <span class="w-20 sm:w-24">🔷 Gemini</span>
                   <span class="text-xs text-gray-600">(Free tier available)</span>
                 </label>
-                <div class="flex gap-2">
+                <div class="flex flex-col sm:flex-row gap-2">
                   <input 
                     type="password" 
                     [(ngModel)]="apiKeys.gemini"
                     placeholder="Enter Google Gemini API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
                   >
-                  <button 
-                    (click)="saveProviderKey('gemini')"
-                    class="bg-[#D32F2F] text-white px-6 py-3 font-bold hover:bg-red-700 transition-colors text-sm"
-                  >
-                    SAVE
-                  </button>
-                  <button 
-                    (click)="clearProviderKey('gemini')"
-                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
-                    title="Clear this API key"
-                  >
-                    🗑️
-                  </button>
+                  <div class="flex gap-2">
+                    <button 
+                      (click)="saveProviderKey('gemini')"
+                      class="bg-[#D32F2F] text-white px-4 sm:px-6 py-3 font-bold hover:bg-red-700 transition-colors text-sm min-h-[48px]"
+                    >
+                      SAVE
+                    </button>
+                    <button 
+                      (click)="clearProviderKey('gemini')"
+                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
+                      title="Clear this API key"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
                 <p class="text-xs text-gray-600">
                   🔑 Get key: <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-[#D32F2F] underline">Google AI Studio</a>
@@ -78,29 +79,31 @@ import { User } from '../models/interfaces.js';
               <!-- OpenRouter API Key -->
               <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
                 <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-24">🔶 OpenRouter</span>
+                  <span class="w-20 sm:w-24">🔶 OpenRouter</span>
                   <span class="text-xs text-gray-600">(200+ models, $5 min)</span>
                 </label>
-                <div class="flex gap-2">
+                <div class="flex flex-col sm:flex-row gap-2">
                   <input 
                     type="password" 
                     [(ngModel)]="apiKeys.openrouter"
                     placeholder="Enter OpenRouter API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
                   >
-                  <button 
-                    (click)="saveProviderKey('openrouter')"
-                    class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
-                  >
-                    SAVE
-                  </button>
-                  <button 
-                    (click)="clearProviderKey('openrouter')"
-                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
-                    title="Clear this API key"
-                  >
-                    🗑️
-                  </button>
+                  <div class="flex gap-2">
+                    <button 
+                      (click)="saveProviderKey('openrouter')"
+                      class="bg-gray-700 text-white px-4 sm:px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm min-h-[48px]"
+                    >
+                      SAVE
+                    </button>
+                    <button 
+                      (click)="clearProviderKey('openrouter')"
+                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
+                      title="Clear this API key"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
                 <p class="text-xs text-gray-600">
                   🔑 Get key: <a href="https://openrouter.ai/keys" target="_blank" class="text-[#D32F2F] underline">OpenRouter Keys</a>
@@ -110,29 +113,31 @@ import { User } from '../models/interfaces.js';
               <!-- OpenAI API Key -->
               <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
                 <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-24">🟢 OpenAI</span>
+                  <span class="w-20 sm:w-24">🟢 OpenAI</span>
                   <span class="text-xs text-gray-600">(GPT-4o, $5-20 recommended)</span>
                 </label>
-                <div class="flex gap-2">
+                <div class="flex flex-col sm:flex-row gap-2">
                   <input 
                     type="password" 
                     [(ngModel)]="apiKeys.openai"
                     placeholder="Enter OpenAI API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
                   >
-                  <button 
-                    (click)="saveProviderKey('openai')"
-                    class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
-                  >
-                    SAVE
-                  </button>
-                  <button 
-                    (click)="clearProviderKey('openai')"
-                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
-                    title="Clear this API key"
-                  >
-                    🗑️
-                  </button>
+                  <div class="flex gap-2">
+                    <button 
+                      (click)="saveProviderKey('openai')"
+                      class="bg-gray-700 text-white px-4 sm:px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm min-h-[48px]"
+                    >
+                      SAVE
+                    </button>
+                    <button 
+                      (click)="clearProviderKey('openai')"
+                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
+                      title="Clear this API key"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
                 <p class="text-xs text-gray-600">
                   🔑 Get key: <a href="https://platform.openai.com/api-keys" target="_blank" class="text-[#D32F2F] underline">OpenAI Platform</a>
@@ -142,29 +147,31 @@ import { User } from '../models/interfaces.js';
               <!-- Anthropic API Key -->
               <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
                 <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-24">🟠 Anthropic</span>
+                  <span class="w-20 sm:w-24">🟠 Anthropic</span>
                   <span class="text-xs text-gray-600">(Claude 3.5, $5 min)</span>
                 </label>
-                <div class="flex gap-2">
+                <div class="flex flex-col sm:flex-row gap-2">
                   <input 
                     type="password" 
                     [(ngModel)]="apiKeys.anthropic"
                     placeholder="Enter Anthropic API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
                   >
-                  <button 
-                    (click)="saveProviderKey('anthropic')"
-                    class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
-                  >
-                    SAVE
-                  </button>
-                  <button 
-                    (click)="clearProviderKey('anthropic')"
-                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
-                    title="Clear this API key"
-                  >
-                    🗑️
-                  </button>
+                  <div class="flex gap-2">
+                    <button 
+                      (click)="saveProviderKey('anthropic')"
+                      class="bg-gray-700 text-white px-4 sm:px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm min-h-[48px]"
+                    >
+                      SAVE
+                    </button>
+                    <button 
+                      (click)="clearProviderKey('anthropic')"
+                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
+                      title="Clear this API key"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
                 <p class="text-xs text-gray-600">
                   🔑 Get key: <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-[#D32F2F] underline">Anthropic Console</a>
@@ -174,29 +181,31 @@ import { User } from '../models/interfaces.js';
               <!-- Groq API Key -->
               <div class="space-y-4">
                 <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-24">⚡ Groq</span>
+                  <span class="w-20 sm:w-24">⚡ Groq</span>
                   <span class="text-xs text-gray-600">(Fast Llama, Free tier)</span>
                 </label>
-                <div class="flex gap-2">
+                <div class="flex flex-col sm:flex-row gap-2">
                   <input 
                     type="password" 
                     [(ngModel)]="apiKeys.groq"
                     placeholder="Enter Groq API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm"
+                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
                   >
-                  <button 
-                    (click)="saveProviderKey('groq')"
-                    class="bg-gray-700 text-white px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm"
-                  >
-                    SAVE
-                  </button>
-                  <button 
-                    (click)="clearProviderKey('groq')"
-                    class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700"
-                    title="Clear this API key"
-                  >
-                    🗑️
-                  </button>
+                  <div class="flex gap-2">
+                    <button 
+                      (click)="saveProviderKey('groq')"
+                      class="bg-gray-700 text-white px-4 sm:px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm min-h-[48px]"
+                    >
+                      SAVE
+                    </button>
+                    <button 
+                      (click)="clearProviderKey('groq')"
+                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
+                      title="Clear this API key"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
                 <p class="text-xs text-gray-600">
                   🔑 Get key: <a href="https://console.groq.com/keys" target="_blank" class="text-[#D32F2F] underline">Groq Console</a>
@@ -231,8 +240,8 @@ import { User } from '../models/interfaces.js';
 
 
             <!-- Admin User Management -->
-            <div class="border border-[#D32F2F] p-6 bg-black mt-8">
-              <h2 class="text-xl font-bold mb-4 text-[#D32F2F]">Admin User Management</h2>
+            <div class="border border-[#D32F2F] p-4 sm:p-6 bg-black mt-6 sm:mt-8">
+              <h2 class="text-lg sm:text-xl font-bold mb-4 text-[#D32F2F]">Admin User Management</h2>
               <p class="text-xs text-gray-500 mb-4">Create new admin accounts</p>
   
               <div class="space-y-4">
@@ -241,7 +250,7 @@ import { User } from '../models/interfaces.js';
                   <input 
                     [(ngModel)]="newAdmin.name"
                     placeholder="Enter admin name"
-                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                   >
                 </div>
     
@@ -251,7 +260,7 @@ import { User } from '../models/interfaces.js';
                     [(ngModel)]="newAdmin.email"
                     type="email"
                     placeholder="Enter admin email"
-                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                   >
                 </div>
     
@@ -261,13 +270,13 @@ import { User } from '../models/interfaces.js';
                     [(ngModel)]="newAdmin.password"
                     type="password"
                     placeholder="Enter password"
-                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                   >
                 </div>
     
                 <button 
                   (click)="createAdmin()"
-                  class="w-full border border-white text-white py-3 font-bold hover:bg-white hover:text-black transition-colors"
+                  class="w-full border border-white text-white py-3 font-bold hover:bg-white hover:text-black transition-colors min-h-[48px]"
                 >
                   CREATE ADMIN USER
                 </button>
@@ -286,7 +295,7 @@ import { User } from '../models/interfaces.js';
                       @if (admin.email !== 'admin@govinfo.ai') {
                         <button 
                           (click)="removeAdmin(admin.id)"
-                          class="text-red-500 hover:text-red-400"
+                          class="text-red-500 hover:text-red-400 py-1 px-2"
                         >
                           Remove
                         </button>
@@ -298,20 +307,20 @@ import { User } from '../models/interfaces.js';
             </div>
 
             <!-- Data Ingestion -->
-            <div class="border border-[#D32F2F] p-6 bg-black">
-              <h2 class="text-xl font-bold mb-4 text-[#D32F2F]">2. Data Ingestion</h2>
+            <div class="border border-[#D32F2F] p-4 sm:p-6 bg-black">
+              <h2 class="text-lg sm:text-xl font-bold mb-4 text-[#D32F2F]">2. Data Ingestion</h2>
               
               <form class="space-y-4">
                 
                 <!-- Country & State -->
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label class="block text-xs text-gray-400 mb-1">Country *</label>
                     <input 
                       [(ngModel)]="newDoc.country" 
                       name="country"
                       placeholder="e.g., India"
-                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                     >
                   </div>
                   <div>
@@ -320,7 +329,7 @@ import { User } from '../models/interfaces.js';
                       [(ngModel)]="newDoc.state" 
                       name="state"
                       placeholder="e.g., Maharashtra"
-                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                     >
                   </div>
                 </div>
@@ -332,19 +341,19 @@ import { User } from '../models/interfaces.js';
                     [(ngModel)]="newDoc.title" 
                     name="title"
                     placeholder="e.g., Maharashtra Industrial Policy 2023"
-                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                   >
                 </div>
                 
                 <!-- Ministry & Type -->
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label class="block text-xs text-gray-400 mb-1">Ministry/Department *</label>
                     <input 
                       [(ngModel)]="newDoc.ministry" 
                       name="ministry"
                       placeholder="e.g., Industries Department"
-                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                     >
                   </div>
                   <div>
@@ -352,7 +361,7 @@ import { User } from '../models/interfaces.js';
                     <select 
                       [(ngModel)]="newDoc.type" 
                       name="type"
-                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                     >
                       <option value="Policy">Policy</option>
                       <option value="Scheme">Scheme</option>
@@ -366,13 +375,13 @@ import { User } from '../models/interfaces.js';
                 </div>
 
                 <!-- Priority & Validity -->
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label class="block text-xs text-gray-400 mb-1">Priority Level</label>
                     <select 
                       [(ngModel)]="newDoc.priority" 
                       name="priority"
-                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                     >
                       <option value="High">High</option>
                       <option value="Medium">Medium</option>
@@ -385,7 +394,7 @@ import { User } from '../models/interfaces.js';
                       [(ngModel)]="newDoc.validityPeriod" 
                       name="validity"
                       placeholder="e.g., 2023-2028"
-                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                     >
                   </div>
                 </div>
@@ -397,7 +406,7 @@ import { User } from '../models/interfaces.js';
                     [(ngModel)]="newDoc.sourceAuthority" 
                     name="sourceAuthority"
                     placeholder="e.g., Government of Maharashtra"
-                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                   >
                 </div>
 
@@ -408,7 +417,7 @@ import { User } from '../models/interfaces.js';
                     [(ngModel)]="tagsInput" 
                     name="tags"
                     placeholder="e.g., manufacturing, msme, incentives"
-                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
                   >
                 </div>
 
@@ -424,7 +433,7 @@ import { User } from '../models/interfaces.js';
                       class="hidden" 
                       accept=".txt,.md,.json,.csv,.xml,.pdf,.doc,.docx,.jpg,.png,.jpeg"
                     >
-                    <span class="bg-[#222] px-4 py-2 text-xs text-white border border-gray-600 rounded inline-block hover:bg-gray-700">
+                    <span class="bg-[#222] px-4 py-2 text-xs text-white border border-gray-600 rounded inline-block hover:bg-gray-700 min-h-[44px] flex items-center justify-center">
                       CHOOSE FILE
                     </span>
                   </label>
@@ -443,7 +452,7 @@ import { User } from '../models/interfaces.js';
                   <textarea 
                     [(ngModel)]="newDoc.content"
                     name="content"
-                    rows="8"
+                    rows="6"
                     placeholder="Paste the full text of the government document here..."
                     class="w-full bg-[#111] border border-gray-700 p-3 text-sm text-white focus:border-[#D32F2F] outline-none font-mono"
                   ></textarea>
@@ -457,7 +466,7 @@ import { User } from '../models/interfaces.js';
                   type="button"
                   (click)="uploadDocument()"
                   [disabled]="isUploading()"
-                  class="w-full border-2 border-white text-white py-3 font-bold hover:bg-white hover:text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="w-full border-2 border-white text-white py-3 font-bold hover:bg-white hover:text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
                 >
                   @if (isUploading()) {
                     INGESTING DOCUMENT...
@@ -471,9 +480,9 @@ import { User } from '../models/interfaces.js';
           </div>
 
           <!-- RIGHT COLUMN: Knowledge Base -->
-          <div class="border border-[#D32F2F] p-6 bg-black max-h-screen flex flex-col">
+          <div class="border border-[#D32F2F] p-4 sm:p-6 bg-black max-h-screen flex flex-col">
             <div class="flex justify-between items-center mb-4">
-              <h2 class="text-xl font-bold text-[#D32F2F]">3. Knowledge Base</h2>
+              <h2 class="text-lg sm:text-xl font-bold text-[#D32F2F]">3. Knowledge Base</h2>
               <span class="text-xs text-gray-500">{{ stateService.documents().length }} documents</span>
             </div>
             
@@ -483,14 +492,14 @@ import { User } from '../models/interfaces.js';
                 type="text"
                 [(ngModel)]="searchQuery"
                 placeholder="Search documents..."
-                class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none"
+                class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
               >
             </div>
 
             <!-- Document List -->
             <div class="flex-1 overflow-y-auto pr-2 space-y-3">
               @for (doc of filteredDocuments(); track doc.id) {
-                <div class="p-4 border border-gray-800 hover:border-gray-500 transition-colors bg-[#0a0a0a] group">
+                <div class="p-3 sm:p-4 border border-gray-800 hover:border-gray-500 transition-colors bg-[#0a0a0a] group">
                   
                   <!-- Header -->
                   <div class="flex justify-between items-start mb-2">
@@ -500,7 +509,7 @@ import { User } from '../models/interfaces.js';
                     <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button 
                         (click)="deleteDocument(doc.id)"
-                        class="text-xs text-red-500 hover:text-red-400"
+                        class="text-xs text-red-500 hover:text-red-400 py-1 px-2"
                         title="Delete document"
                       >
                         🗑️
@@ -548,15 +557,15 @@ import { User } from '../models/interfaces.js';
             <!-- Stats -->
             <div class="mt-4 pt-4 border-t border-gray-800 grid grid-cols-3 gap-4 text-center">
               <div>
-                <div class="text-2xl font-bold text-[#D32F2F]">{{ stateService.documents().length }}</div>
+                <div class="text-xl sm:text-2xl font-bold text-[#D32F2F]">{{ stateService.documents().length }}</div>
                 <div class="text-xs text-gray-500">Total Docs</div>
               </div>
               <div>
-                <div class="text-2xl font-bold text-[#D32F2F]">{{ uniqueStates() }}</div>
+                <div class="text-xl sm:text-2xl font-bold text-[#D32F2F]">{{ uniqueStates() }}</div>
                 <div class="text-xs text-gray-500">States</div>
               </div>
               <div>
-                <div class="text-2xl font-bold text-[#D32F2F]">{{ getAdminFirstName() }}</div>
+                <div class="text-xl sm:text-2xl font-bold text-[#D32F2F]">{{ getAdminFirstName() }}</div>
                 <div class="text-xs text-gray-500">Admin</div>
               </div>
             </div>
@@ -575,7 +584,6 @@ import { User } from '../models/interfaces.js';
 export class AdminComponent {
   stateService = inject(StateService);
   
-  //apiKeyInput = '';
   // Multi-provider API Keys
   apiKeys = {
     gemini: '',
@@ -605,8 +613,7 @@ export class AdminComponent {
   };
 
   constructor() {
-    //this.apiKeyInput = this.stateService.apiKey();
-      // Load all provider keys
+    // Load all provider keys
     this.apiKeys.gemini = this.stateService.getApiKey('gemini');
     this.apiKeys.openrouter = this.stateService.getApiKey('openrouter');
     this.apiKeys.openai = this.stateService.getApiKey('openai');
@@ -864,7 +871,6 @@ To properly extract content from PDFs, DOCX, and images in production:
     });
   }
 
-
   // New admin form data
   newAdmin = {
     name: '',
@@ -874,7 +880,6 @@ To properly extract content from PDFs, DOCX, and images in production:
 
   // Inject AuthService
   authService = inject(AuthService);
-  //constructor(private authService: AuthService) {}
 
   // Create new admin
   createAdmin() {
@@ -915,9 +920,7 @@ To properly extract content from PDFs, DOCX, and images in production:
   // Get all admin users
   getAdminUsers() {
     const users = this.authService.getAllUsers();
-    //return users.filter(u => u.role === 'admin');
     return users.filter((u: User) => u.role === 'admin');
-
   }
 
   // Remove admin user
@@ -933,5 +936,4 @@ To properly extract content from PDFs, DOCX, and images in production:
       duration: 3000
     });
   }
-
 }
