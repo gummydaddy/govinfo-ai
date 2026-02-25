@@ -1,14 +1,15 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StateService } from '../services/state.services.js';
+import { DocMetadata } from '../models/interfaces';
 
 @Component({
   selector: 'app-search',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="min-h-screen bg-black text-white p-4 sm:p-8 safe-area-top safe-area-bottom">
+    <div class="min-h-screen bg-black text-white p-4 sm:p-8 safe-area-top safe-area-bottom overflow-y-auto">
       <div class="max-w-5xl mx-auto">
         
         <!-- Header -->
@@ -78,7 +79,10 @@ import { StateService } from '../services/state.services.js';
         <!-- Results -->
         <div class="space-y-4">
           @for (doc of results(); track doc.id) {
-            <div class="border border-gray-800 bg-[#0a0a0a] p-4 sm:p-6 hover:border-[#D32F2F] transition-colors group">
+            <div 
+              class="border border-gray-800 bg-[#0a0a0a] p-4 sm:p-6 hover:border-[#D32F2F] transition-colors group cursor-pointer"
+              (click)="openDocument(doc)"
+            >
               
               <!-- Header Row -->
               <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
@@ -132,6 +136,87 @@ import { StateService } from '../services/state.services.js';
           }
         </div>
       </div>
+
+      <!-- Document Viewer Modal -->
+      @if (selectedDocument()) {
+        <div 
+          class="fixed inset-0 bg-black/90 z-50 overflow-y-auto"
+          (click)="closeDocument()"
+        >
+          <div 
+            class="min-h-screen p-4 sm:p-8 flex flex-col items-center"
+            (click)="$event.stopPropagation()"
+          >
+            <!-- Modal Content -->
+            <div class="w-full max-w-4xl bg-[#0a0a0a] border border-gray-700 rounded-lg overflow-hidden my-4 sm:my-8">
+              
+              <!-- Modal Header -->
+              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 sm:p-6 border-b border-gray-800 gap-3">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-2 flex-wrap">
+                    <span class="bg-[#D32F2F] text-white text-[10px] px-2 py-0.5 font-bold uppercase">
+                      {{ selectedDocument()!.type }}
+                    </span>
+                    <span class="text-xs text-gray-400">
+                      {{ selectedDocument()!.country }} 
+                      @if (selectedDocument()!.state && selectedDocument()!.state !== 'All') {
+                        > {{ selectedDocument()!.state }}
+                      }
+                    </span>
+                  </div>
+                  <h2 class="text-lg sm:text-xl font-bold text-white">{{ selectedDocument()!.title }}</h2>
+                  <p class="text-xs text-gray-400 mt-1 font-mono uppercase">{{ selectedDocument()!.ministry }}</p>
+                </div>
+                <button 
+                  (click)="closeDocument()"
+                  class="text-gray-400 hover:text-white transition-colors p-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Document Metadata -->
+              <div class="px-4 sm:px-6 py-3 bg-[#111] border-b border-gray-800 flex flex-wrap gap-4 text-xs text-gray-400">
+                @if (selectedDocument()!.sourceAuthority) {
+                  <span><span class="text-gray-500">Authority:</span> {{ selectedDocument()!.sourceAuthority }}</span>
+                }
+                @if (selectedDocument()!.validityPeriod) {
+                  <span><span class="text-gray-500">Validity:</span> {{ selectedDocument()!.validityPeriod }}</span>
+                }
+                <span><span class="text-gray-500">Uploaded:</span> {{ selectedDocument()!.uploadDate | date:'mediumDate' }}</span>
+                <span><span class="text-gray-500">Priority:</span> {{ selectedDocument()!.priority }}</span>
+              </div>
+
+              <!-- Document Content -->
+              <div class="p-4 sm:p-6">
+                <pre class="whitespace-pre-wrap font-mono text-sm text-gray-300 leading-relaxed">{{ selectedDocument()!.content }}</pre>
+              </div>
+
+              <!-- Tags -->
+              @if (selectedDocument()!.tags && selectedDocument()!.tags!.length > 0) {
+                <div class="px-4 sm:px-6 py-4 border-t border-gray-800 flex gap-2 flex-wrap">
+                  @for (tag of selectedDocument()!.tags; track tag) {
+                    <span class="text-xs bg-gray-800 text-gray-400 px-3 py-1 rounded">#{{ tag }}</span>
+                  }
+                </div>
+              }
+
+              <!-- Modal Footer -->
+              <div class="px-4 sm:px-6 py-4 bg-[#111] border-t border-gray-800 flex justify-end">
+                <button 
+                  (click)="closeDocument()"
+                  class="bg-[#D32F2F] hover:bg-[#b91c1c] text-white px-6 py-2 rounded transition-colors min-h-[44px]"
+                >
+                  Close Document
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `
 })
@@ -141,6 +226,22 @@ export class SearchComponent {
   query = signal('');
   filterType = signal('');
   filterState = signal('');
+  selectedDocument = signal<DocMetadata | null>(null);
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey() {
+    this.closeDocument();
+  }
+
+  // Open document viewer
+  openDocument(doc: DocMetadata) {
+    this.selectedDocument.set(doc);
+  }
+
+  // Close document viewer
+  closeDocument() {
+    this.selectedDocument.set(null);
+  }
 
   results = computed(() => {
     const q = this.query().toLowerCase();

@@ -27,7 +27,7 @@ import { OnboardingComponent } from './components/onboarding.component';
     OnboardingComponent
   ],
   template: `
-    <div class="relative w-full h-screen overflow-hidden">
+    <div class="relative w-full min-h-screen overflow-x-hidden">
       
       <!-- Notifications Container - Mobile Responsive -->
       <div class="fixed top-4 right-4 z-50 space-y-2 max-w-[calc(100vw-2rem)] w-full sm:w-auto sm:max-w-sm safe-area-top safe-area-right">
@@ -91,7 +91,7 @@ import { OnboardingComponent } from './components/onboarding.component';
     :host {
       display: block;
       width: 100%;
-      height: 100vh;
+      min-height: 100vh;
     }
   `]
 })
