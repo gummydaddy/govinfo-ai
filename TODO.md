@@ -11,4 +11,5 @@ Modify the knowledge base search component to allow users to read full document 
 - [x] 5. Fix scroll issue in search component
 - [x] 6. Add document viewer to admin panel
 - [x] 7. Fix app.component.ts overflow to enable page scrolling
+- [x] 8. Fix Groq SDK import issue by using direct API calls
 

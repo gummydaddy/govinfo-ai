@@ -392,7 +392,7 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
   });
   
   /**
-   * Get available states from documents
+   * Get available states from documents (deduplicated and normalized)
    */
   readonly availableStates = computed(() => {
     const docs = this.documents();
@@ -400,7 +400,9 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
     
     docs.forEach(doc => {
       if (doc.state && doc.state !== 'All' && doc.state.trim()) {
-        states.add(doc.state);
+        // Normalize the state name before adding to set to prevent duplicates
+        const normalizedState = this.normalizeStateName(doc.state);
+        states.add(normalizedState);
       }
     });
     
@@ -426,6 +428,26 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
   // ========== CONSTRUCTOR ==========
   constructor() {
     this.loadFromLocalStorage();
+  }
+  
+  // ========== PRIVATE METHODS ==========
+  
+  /**
+   * Normalize state name for consistent storage and display
+   * - Trims whitespace
+   * - Converts to title case (first letter uppercase, rest lowercase)
+   * @param state The state name to normalize
+   * @returns Normalized state name
+   */
+  private normalizeStateName(state: string): string {
+    if (!state || !state.trim()) return state;
+    
+    return state
+      .trim()
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
   
   // ========== PUBLIC METHODS ==========
@@ -494,13 +516,28 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
   
   // --- Documents ---
   addDocument(doc: DocMetadata) {
-    this.documents.update(docs => [doc, ...docs]);
+    // Normalize the state name before storing to ensure consistency
+    const normalizedDoc = {
+      ...doc,
+      state: doc.state ? this.normalizeStateName(doc.state) : doc.state
+    };
+    this.documents.update(docs => [normalizedDoc, ...docs]);
     this.saveDocumentsToLocalStorage();
   }
   
   updateDocument(id: string, updates: Partial<DocMetadata>) {
     this.documents.update(docs => 
-      docs.map(doc => doc.id === id ? { ...doc, ...updates } : doc)
+      docs.map(doc => {
+        if (doc.id === id) {
+          const updatedDoc = { ...doc, ...updates };
+          // Normalize state if provided in updates
+          if (updates.state) {
+            updatedDoc.state = this.normalizeStateName(updates.state);
+          }
+          return updatedDoc;
+        }
+        return doc;
+      })
     );
     this.saveDocumentsToLocalStorage();
   }
