@@ -4,9 +4,10 @@ import { Component, inject, signal, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StateService } from '../services/state.services.js';
-import { DocMetadata } from '../models/interfaces';
+import { DocMetadata, ExtractionResult } from '../models/interfaces';
 import { AuthService } from '../services/auth.service.js';
 import { User } from '../models/interfaces.js';
+import { DocumentExtractionService } from '../services/document-extraction.service.js';
 
 
 
@@ -673,6 +674,7 @@ import { User } from '../models/interfaces.js';
 })
 export class AdminComponent {
   stateService = inject(StateService);
+  extractionService = inject(DocumentExtractionService);
   
   // Multi-provider API Keys
   apiKeys = {
@@ -764,8 +766,8 @@ export class AdminComponent {
     });
   }
 
-  // File Upload Handler
-  handleFileUpload(event: any) {
+  // File Upload Handler with Real Extraction
+  async handleFileUpload(event: any) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -776,54 +778,113 @@ export class AdminComponent {
       this.newDoc.title = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
     }
 
-    const reader = new FileReader();
+    // Check if file type is supported
+    const fileType = this.extractionService.getFileType(file);
     
+    if (fileType === 'unknown') {
+      this.stateService.addNotification({
+        type: 'error',
+        message: `Unsupported file type: ${file.type || file.name}. Supported: PDF, DOCX, DOC, Images`,
+        duration: 4000
+      });
+      event.target.value = '';
+      return;
+    }
+
+    // Check file size (10MB limit for extraction)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      this.stateService.addNotification({
+        type: 'warning',
+        message: `File size (${this.extractionService.formatFileSize(file.size)}) exceeds 10MB. Extraction may be slow.`,
+        duration: 4000
+      });
+    }
+
     // Check if file is text-based
     const isTextFile = file.type.match(/text.*/) || 
                       file.name.match(/\.(txt|md|json|csv|xml)$/i);
     
     if (isTextFile) {
+      // For text files, read directly
+      const reader = new FileReader();
       reader.onload = (e: any) => {
         this.newDoc.content = e.target.result;
         this.stateService.addNotification({
           type: 'success',
-          message: 'File loaded successfully',
+          message: 'Text file loaded successfully',
           duration: 2000
         });
       };
       reader.readAsText(file);
     } else {
-      // For binary files (PDF, DOCX, Images)
-      // In production, you'd upload to server for OCR/extraction
-      // For demo, we'll simulate extraction
-      this.newDoc.content = `[FILE CONTENT EXTRACTED FROM: ${file.name}]
-
-(System Note: This document was uploaded as a binary file. In a production system, this would be processed through OCR or document extraction APIs.)
-
-File Type: ${file.type || 'Unknown'}
-File Size: ${(file.size / 1024).toFixed(2)} KB
-Upload Date: ${new Date().toISOString()}
-
---- SIMULATED EXTRACTED CONTENT ---
-
-Document Title: ${this.newDoc.title || file.name}
-Source: ${this.newDoc.sourceAuthority || 'Government Document'}
-
-The system has indexed this document's content for RAG retrieval. 
-Users can query information from this document through the chat interface.
-
-To properly extract content from PDFs, DOCX, and images in production:
-- Use PDF.js or PyPDF2 for PDF extraction
-- Use mammoth.js or python-docx for Word documents
-- Use Tesseract OCR for scanned images
-- Store extracted text in the content field
-`;
-      
+      // For binary files (PDF, DOCX, Images), use extraction service
       this.stateService.addNotification({
         type: 'info',
-        message: 'Binary file uploaded. Content extraction simulated for demo.',
-        duration: 4000
+        message: `Extracting text from ${fileType.toUpperCase()}...`,
+        duration: 2000
       });
+
+      try {
+        const result: ExtractionResult = await this.extractionService.extractText(file);
+        
+        if (result.success && result.text) {
+          // Build content with metadata
+          const metadata = result.metadata;
+          let contentHeader = `[EXTRACTED FROM: ${file.name}]
+Extraction Date: ${new Date().toISOString()}
+File Type: ${metadata?.fileType?.toUpperCase() || 'Unknown'}
+File Size: ${this.extractionService.formatFileSize(file.size)}
+`;
+
+          // Add type-specific metadata
+          if (metadata?.pageCount) {
+            contentHeader += `Pages: ${metadata.pageCount}\n`;
+          }
+          if (metadata?.confidence) {
+            contentHeader += `OCR Confidence: ${metadata.confidence.toFixed(1)}%\n`;
+          }
+
+          contentHeader += `\n--- EXTRACTED CONTENT ---\n\n`;
+
+          this.newDoc.content = contentHeader + result.text;
+          
+          this.stateService.addNotification({
+            type: 'success',
+            message: `Text extracted successfully! (${result.text.length} characters)`,
+            duration: 3000
+          });
+        } else {
+          // Extraction failed
+          this.newDoc.content = `[FILE CONTENT EXTRACTION FAILED: ${file.name}]
+
+Error: ${result.error || 'Unknown error'}
+File Type: ${fileType.toUpperCase()}
+File Size: ${this.extractionService.formatFileSize(file.size)}
+
+Note: The file could not be processed for text extraction. 
+
+For PDFs: The document may be scanned or image-based. Try using OCR-enabled PDF or convert to text.
+For DOCX: The document may be corrupted or in an unsupported format.
+For Images: The image may not contain readable text.
+
+You can still paste the document content manually below.
+`;
+          
+          this.stateService.addNotification({
+            type: 'warning',
+            message: `Extraction failed: ${result.error}. Please enter content manually.`,
+            duration: 5000
+          });
+        }
+      } catch (error: any) {
+        console.error('Extraction error:', error);
+        this.stateService.addNotification({
+          type: 'error',
+          message: `Extraction error: ${error.message}`,
+          duration: 4000
+        });
+      }
     }
 
     // Reset file input

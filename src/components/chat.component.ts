@@ -7,6 +7,7 @@ import { StateService } from '../services/state.services.js';
 import { AiService } from '../services/ai.services.js';
 import { VoiceService } from '../services/voice.service';
 import { LanguageService } from '../services/language.service';
+import { DocumentExtractionService } from '../services/document-extraction.service.js';
 import { Attachment } from '../models/interfaces';
 import { MarkdownPipe } from '../pipes/markdown.pipe';
 
@@ -432,6 +433,7 @@ export class ChatComponent {
   aiService = inject(AiService);
   voiceService = inject(VoiceService);
   languageService = inject(LanguageService);
+  extractionService = inject(DocumentExtractionService);
   
   userInput = '';
   isThinking = signal(false);
@@ -502,33 +504,97 @@ export class ChatComponent {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Check file size (5MB limit for demo)
-    if (file.size > 5 * 1024 * 1024) {
+    // Check file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
       this.stateService.addNotification({
         type: 'error',
-        message: 'File size exceeds 5MB limit',
+        message: 'File size exceeds 10MB limit',
         duration: 3000
       });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      const base64 = e.target.result;
-      this.currentAttachments.push({
-        name: file.name,
-        mimeType: file.type,
-        data: base64,
-        size: file.size
-      });
-      
+    const fileType = this.extractionService.getFileType(file);
+    
+    // Check if we should extract text first
+    if (this.extractionService.shouldExtractText(file)) {
       this.stateService.addNotification({
-        type: 'success',
-        message: `File "${file.name}" attached`,
+        type: 'info',
+        message: `Extracting text from ${fileType?.toUpperCase()}...`,
         duration: 2000
       });
-    };
-    reader.readAsDataURL(file);
+
+      try {
+        const result = await this.extractionService.extractText(file);
+        
+        if (result.success && result.text) {
+          // Add attachment with extracted text embedded
+          const extractedPreview = result.text.substring(0, 500) + (result.text.length > 500 ? '...' : '');
+          
+          this.currentAttachments.push({
+            name: file.name,
+            mimeType: file.type,
+            data: result.text, // Store extracted text as data
+            size: file.size
+          });
+          
+          this.stateService.addNotification({
+            type: 'success',
+            message: `Text extracted (${result.text.length} chars). Ready to analyze.`,
+            duration: 3000
+          });
+        } else {
+          // Extraction failed - still add file for AI vision analysis
+          this.stateService.addNotification({
+            type: 'warning',
+            message: `Could not extract text. Will use AI vision analysis.`,
+            duration: 3000
+          });
+          
+          const reader = new FileReader();
+          reader.onload = (e: any) => {
+            this.currentAttachments.push({
+              name: file.name,
+              mimeType: file.type,
+              data: e.target.result,
+              size: file.size
+            });
+          };
+          reader.readAsDataURL(file);
+        }
+      } catch (error: any) {
+        console.error('Extraction error:', error);
+        // Fall back to regular file attachment
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          this.currentAttachments.push({
+            name: file.name,
+            mimeType: file.type,
+            data: e.target.result,
+            size: file.size
+          });
+        };
+        reader.readAsDataURL(file);
+      }
+    } else {
+      // For images, use AI vision directly
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        this.currentAttachments.push({
+          name: file.name,
+          mimeType: file.type,
+          data: e.target.result,
+          size: file.size
+        });
+        
+        this.stateService.addNotification({
+          type: 'success',
+          message: `File "${file.name}" attached for AI analysis`,
+          duration: 2000
+        });
+      };
+      reader.readAsDataURL(file);
+    }
 
     // Reset input
     event.target.value = '';

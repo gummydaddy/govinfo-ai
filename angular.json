@@ -20,7 +20,12 @@
               "tsConfig": "tsconfig.json",
               "assets": [],
               "styles": [],
-              "scripts": []
+              "scripts": [],
+              "allowedCommonJsDependencies": [
+                "pdfjs-dist",
+                "mammoth",
+                "tesseract.js"
+              ]
             },
             "configurations": {
               "production": {

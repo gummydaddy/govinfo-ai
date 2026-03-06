@@ -248,8 +248,8 @@ export interface KnowledgebaseEntry {
     intent: string;
   };
   usageCount: number;         // How many times used
-  lastUsed: number;           // Timestamp
-  createdAt: number;          // When learned
+  lastUsed: number;          // Timestamp
+  createdAt: number;         // When learned
   source: 'user-chat' | 'ai-response';
 }
 
@@ -259,5 +259,21 @@ export interface KnowledgebaseEntry {
 export interface KnowledgebaseMatch {
   entry: KnowledgebaseEntry;
   confidence: number;         // 0-1 similarity score
+}
+
+/**
+ * Document extraction result
+ */
+export interface ExtractionResult {
+  success: boolean;
+  text: string;
+  error?: string;
+  metadata?: {
+    pageCount?: number;
+    language?: string;
+    confidence?: number;
+    fileType: string;
+    fileName: string;
+  };
 }
 
