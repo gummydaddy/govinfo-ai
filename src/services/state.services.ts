@@ -425,6 +425,40 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
     return Array.from(countries).sort();
   });
   
+  /**
+   * Get available sectors from document ministries (deduplicated and normalized)
+   * This extracts unique ministry/department names from uploaded documents
+   */
+  readonly availableSectors = computed(() => {
+    const docs = this.documents();
+    const sectorSet = new Set<string>();
+    
+    // Default sectors as fallback when no documents exist
+    const defaultSectors = [
+      'Manufacturing', 
+      'IT / Services', 
+      'Agriculture', 
+      'Export', 
+      'Healthcare',
+      'Education',
+      'Renewable Energy',
+      'Food Processing'
+    ];
+    
+    // First add default sectors
+    defaultSectors.forEach(sector => sectorSet.add(sector));
+    
+    // Then add ministries from documents
+    docs.forEach(doc => {
+      if (doc.ministry && doc.ministry.trim()) {
+        const normalizedSector = this.normalizeSectorName(doc.ministry);
+        sectorSet.add(normalizedSector);
+      }
+    });
+    
+    return Array.from(sectorSet).sort();
+  });
+  
   // ========== CONSTRUCTOR ==========
   constructor() {
     this.loadFromLocalStorage();
@@ -448,6 +482,36 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
+  }
+  
+  /**
+   * Normalize sector/ministry name for consistent storage and display
+   * - Trims whitespace
+   * - Removes extra spaces
+   * - Converts to title case
+   * Also provides a key for duplicate detection (lowercase + no spaces)
+   * @param sector The sector/ministry name to normalize
+   * @returns Normalized sector name
+   */
+  normalizeSectorName(sector: string): string {
+    if (!sector || !sector.trim()) return sector;
+    
+    return sector
+      .trim()
+      .replace(/\s+/g, ' ')  // Replace multiple spaces with single space
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  
+  /**
+   * Get a normalized key for duplicate detection (case-insensitive + space-insensitive)
+   * @param sector The sector name to get key for
+   * @returns Lowercase key with no spaces
+   */
+  private getSectorKey(sector: string): string {
+    return sector.toLowerCase().replace(/\s+/g, '');
   }
   
   // ========== PUBLIC METHODS ==========

@@ -90,7 +90,7 @@ import { UserContext } from '../models/interfaces';
                   What is your primary industry sector?
                 </label>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  @for (sector of sectors; track sector) {
+                  @for (sector of availableSectors(); track sector) {
                     <button 
                       (click)="ctx.sector = sector; next()"
                       class="p-3 sm:p-4 border border-gray-700 hover:border-[#D32F2F] hover:bg-[#111] text-left text-sm font-medium transition-all min-h-[48px]"
@@ -100,6 +100,10 @@ import { UserContext } from '../models/interfaces';
                       {{ sector }}
                     </button>
                   }
+                </div>
+                <div class="mt-4 text-xs text-gray-500">
+                  💡 Sectors are populated from Ministry/Department entries in uploaded documents.<br>
+                  📚 New sectors automatically appear when admin adds documents.
                 </div>
               </div>
             }
@@ -113,12 +117,48 @@ import { UserContext } from '../models/interfaces';
                 <div class="grid grid-cols-1 gap-3">
                   @for (intent of intents; track intent) {
                     <button 
-                      (click)="ctx.intent = intent; start()"
+                      (click)="selectIntent(intent)"
                       class="p-3 sm:p-4 border border-gray-700 hover:border-[#D32F2F] hover:bg-[#111] text-left text-sm font-medium transition-all min-h-[48px]"
+                      [class.border-[#D32F2F]]="ctx.intent === intent"
+                      [class.bg-[#111]]="ctx.intent === intent"
                     >
                       {{ intent }}
                     </button>
                   }
+                </div>
+                
+                <!-- Custom "Other" Input -->
+                @if (showOtherIntent()) {
+                  <div class="mt-4 animate-fadeIn">
+                    <label class="block text-xs text-gray-400 mb-2">
+                      Please specify your objective:
+                    </label>
+                    <input 
+                      type="text"
+                      [(ngModel)]="customIntent"
+                      (keyup.enter)="confirmCustomIntent()"
+                      placeholder="Enter your objective..."
+                      class="w-full bg-[#111] border border-[#D32F2F] p-3 text-white focus:border-[#D32F2F] outline-none text-sm min-h-[48px]"
+                    >
+                    <div class="flex gap-2 mt-3">
+                      <button 
+                        (click)="confirmCustomIntent()"
+                        class="flex-1 bg-[#D32F2F] text-white py-2 px-4 font-bold hover:bg-red-700 transition-colors text-sm min-h-[44px]"
+                      >
+                        CONFIRM
+                      </button>
+                      <button 
+                        (click)="cancelCustomIntent()"
+                        class="bg-gray-800 text-white py-2 px-4 hover:bg-gray-700 transition-colors text-sm min-h-[44px]"
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
+                }
+                
+                <div class="mt-4 text-xs text-gray-500">
+                  💡 Can't find what you're looking for? Select "Other" and specify your requirement.
                 </div>
               </div>
             }
@@ -151,6 +191,10 @@ import { UserContext } from '../models/interfaces';
 export class SetupComponent {
   stateService = inject(StateService);
   step = signal(1);
+  
+  // Signal for showing custom "Other" intent input
+  showOtherIntent = signal(false);
+  customIntent = '';
 
   ctx: UserContext = {
     country: 'India',
@@ -168,17 +212,12 @@ export class SetupComponent {
     return this.stateService.availableCountries();
   });
 
-  sectors = [
-    'Manufacturing', 
-    'IT / Services', 
-    'Agriculture', 
-    'Export', 
-    'Healthcare',
-    'Education',
-    'Renewable Energy',
-    'Food Processing'
-  ];
+  // Dynamic sectors from state service (extracted from document ministries)
+  availableSectors = computed(() => {
+    return this.stateService.availableSectors();
+  });
   
+  // Default intents with "Other" option
   intents = [
     'Factory Setup', 
     'Startup Registration', 
@@ -186,7 +225,8 @@ export class SetupComponent {
     'NGO Registration', 
     'Legal Compliance Check',
     'Subsidy Application',
-    'DPR Generation'
+    'DPR Generation',
+    'Other'
   ];
 
   getStepTitle() {
@@ -219,6 +259,38 @@ export class SetupComponent {
     if (this.step() > 1) {
       this.step.update(s => s - 1);
     }
+  }
+  
+  // Handle intent selection including "Other" option
+  selectIntent(intent: string) {
+    if (intent === 'Other') {
+      this.showOtherIntent.set(true);
+      this.customIntent = '';
+    } else {
+      this.ctx.intent = intent;
+      this.start();
+    }
+  }
+  
+  // Confirm custom intent from "Other" option
+  confirmCustomIntent() {
+    if (this.customIntent.trim()) {
+      this.ctx.intent = this.customIntent.trim();
+      this.start();
+    } else {
+      // Show warning - input is empty
+      this.stateService.addNotification({
+        type: 'warning',
+        message: 'Please enter your objective',
+        duration: 2000
+      });
+    }
+  }
+  
+  // Cancel custom intent and go back
+  cancelCustomIntent() {
+    this.showOtherIntent.set(false);
+    this.customIntent = '';
   }
 
   start() {

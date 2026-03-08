@@ -913,13 +913,17 @@ You can still paste the document content manually below.
         ? this.tagsInput.split(',').map(t => t.trim()).filter(t => t)
         : [];
 
-      // Create document
+      // Normalize ministry name for consistent sector matching
+      const ministryInput = this.newDoc.ministry || 'Unknown';
+      const normalizedMinistry = this.stateService.normalizeSectorName(ministryInput);
+
+      // Create document with normalized ministry
       const doc: DocMetadata = {
         id: this.generateId(),
         title: this.newDoc.title!,
         country: this.newDoc.country || 'India',
         state: this.newDoc.state || 'All',
-        ministry: this.newDoc.ministry || 'Unknown',
+        ministry: normalizedMinistry,  // Use normalized ministry
         type: this.newDoc.type || 'Policy',
         content: this.newDoc.content!,
         priority: this.newDoc.priority || 'Medium',
