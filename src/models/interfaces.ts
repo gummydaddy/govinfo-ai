@@ -30,6 +30,7 @@ export interface DocMetadata {
   sourceAuthority?: string;
   fileUrl?: string;
   tags?: string[];
+  officialSource?: boolean;  // True if uploaded via admin panel
 }
 
 /**
@@ -251,6 +252,7 @@ export interface KnowledgebaseEntry {
   lastUsed: number;          // Timestamp
   createdAt: number;         // When learned
   source: 'user-chat' | 'ai-response';
+  kbSource: 'official' | 'web' | 'unknown';  // Source type for filtering
 }
 
 /**
@@ -275,5 +277,142 @@ export interface ExtractionResult {
     fileType: string;
     fileName: string;
   };
+}
+
+/**
+ * Web scraping settings
+ */
+export interface ScrapingSettings {
+  enabled: boolean;
+  minConfidenceThreshold: number;
+  maxResultsPerQuery: number;
+  cacheDurationHours: number;
+  autoScrapeOnLowConfidence: boolean;
+}
+
+/**
+ * Approved URL for scraping
+ */
+export interface ApprovedUrl {
+  id: string;
+  url: string;
+  title: string;
+  category: string;
+  ministry?: string;
+  country: string;
+  enabled: boolean;
+  addedAt: number;
+  lastScraped?: number;
+  crawlPriority?: 'high' | 'medium' | 'low';
+}
+
+/**
+ * Crawl settings for background crawler
+ */
+export interface CrawlSettings {
+  enabled: boolean;
+  intervalHours: number;  // 1, 6, 12, 24 hours
+  maxPagesPerUrl: number; // Max pages to crawl per URL
+  maxContentLength: number; // Max characters per page
+  crawlDelayMs: number;   // Delay between requests
+}
+
+/**
+ * Crawl history entry
+ */
+export interface CrawlHistoryEntry {
+  id: string;
+  url: string;
+  urlTitle: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  startedAt: number;
+  completedAt?: number;
+  pagesCrawled: number;
+  itemsIndexed: number;
+  error?: string;
+}
+
+/**
+ * Crawl status
+ */
+export interface CrawlStatus {
+  isRunning: boolean;
+  currentUrl: string | null;
+  totalUrls: number;
+  completedUrls: number;
+  lastCrawlTime: number | null;
+  nextCrawlTime: number | null;
+}
+
+/**
+ * Structured information extracted from web content
+ */
+export interface StructuredInfo {
+  eligibility?: string[];
+  documentsRequired?: string[];
+  fees?: string;
+  timeline?: string;
+  howToApply?: string;
+  forms?: string[];
+  links?: { title: string; url: string }[];
+  contactInfo?: string;
+  importantLinks?: { title: string; url: string }[];
+}
+
+/**
+ * Scraped content from web
+ */
+export interface ScrapedContent {
+  url: string;
+  title: string;
+  content: string;
+  timestamp: number;
+  relevanceScore: number;
+  ministry?: string;
+  state?: string;
+  sourceType: 'knowledgebase' | 'uploaded-doc' | 'web-scraped';
+  structuredInfo?: StructuredInfo;
+  snippet?: string;
+  domain?: string;
+}
+
+/**
+ * Web search result
+ */
+export interface WebSearchResult {
+  url: string;
+  title: string;
+  snippet: string;
+  relevanceScore: number;
+  sourceType: 'knowledgebase' | 'uploaded-doc' | 'web-scraped';
+}
+
+/**
+ * Enhanced AI response with source attribution
+ */
+export interface EnhancedAIResponse {
+  text: string;
+  sources: GroundingSource[];
+  suggestedActions?: string[];
+  error?: string;
+  fromKnowledgebase: boolean;
+  knowledgebaseConfidence?: number;
+  webResults?: WebSearchResult[];
+  responseMetadata?: {
+    scrapedContent: boolean;
+    topicMatch: string | null;
+    processingTimeMs: number;
+  };
+}
+
+/**
+ * Pending query for backend processing
+ */
+export interface PendingQuery {
+  id: string;
+  query: string;
+  tokens: string[];
+  context: UserContext;
+  timestamp: number;
 }
 

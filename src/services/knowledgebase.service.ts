@@ -8,7 +8,7 @@ import { KnowledgebaseEntry, KnowledgebaseMatch, UserContext } from '../models/i
  */
 const KB_CONFIG = {
   MAX_ENTRIES: 500,              // Maximum entries to store
-  MIN_CONFIDENCE: 0.7,           // Minimum match confidence (0-1)
+  MIN_CONFIDENCE: 0.5,           // Minimum match confidence (0-1)
   MIN_QUESTION_LENGTH: 10,       // Minimum question length to learn
   MIN_ANSWER_LENGTH: 20,         // Minimum answer length to store
   MAX_STORAGE_SIZE_KB: 500,       // Max ~500KB storage
@@ -38,9 +38,9 @@ export class KnowledgebaseService {
   }
 
   /**
-   * Tokenize a question for fast matching
+   * Tokenize a question for fast matching (PUBLIC for reuse)
    */
-  private tokenize(text: string): string[] {
+  public tokenize(text: string): string[] {
     // Normalize: lowercase, remove punctuation, split by whitespace
     const normalized = text
       .toLowerCase()
@@ -110,7 +110,7 @@ export class KnowledgebaseService {
    * Search knowledgebase for similar question
    */
   findMatch(question: string, context: UserContext): KnowledgebaseMatch | null {
-    const entries = this.entries();
+    const entries = this.entries().filter(e => e.kbSource === 'official');  // Only official sources
     if (entries.length === 0) {
       this.stats.update(s => ({ ...s, misses: s.misses + 1 }));
       return null;
@@ -162,7 +162,8 @@ export class KnowledgebaseService {
     question: string, 
     answer: string, 
     context: UserContext,
-    source: 'user-chat' | 'ai-response' = 'ai-response'
+    source: 'user-chat' | 'ai-response' = 'ai-response',
+    kbSource: 'official' | 'web' | 'unknown' = 'unknown'
   ): boolean {
     // Validation checks
     const cleanQuestion = question.trim();
@@ -172,11 +173,17 @@ export class KnowledgebaseService {
     if (cleanAnswer.length < KB_CONFIG.MIN_ANSWER_LENGTH) return false;
     
     // Check for error indicators in answer
-    const errorIndicators = ['error', 'not available', 'cannot answer', 'no information'];
+    const errorIndicators = ['error', 'not available', 'cannot answer', 'no information', 'no official document provided'];
     const isErrorAnswer = errorIndicators.some(ind => 
       cleanAnswer.toLowerCase().includes(ind)
     );
     if (isErrorAnswer) return false;
+
+    // Only learn from official sources
+    if (kbSource !== 'official') {
+      console.log('[KB] Skipped learning non-official source:', kbSource);
+      return false;
+    }
 
     const entries = this.entries();
     
@@ -202,7 +209,8 @@ export class KnowledgebaseService {
       usageCount: 0,
       lastUsed: Date.now(),
       createdAt: Date.now(),
-      source
+      source,
+      kbSource: 'unknown'  // Default; AI service will set to 'official' when appropriate
     };
 
     // Add to entries

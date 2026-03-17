@@ -1,0 +1,10 @@
+// Backup of previous ai.services.ts - provided by user
+// This version used web scraping in frontend (to be avoided)
+
+import { Injectable, inject } from '@angular/core';
+import { StateService } from './state.services.js';
+import { KnowledgebaseService } from './knowledgebase.service.js';
+import { WebScraperService } from './web-scraper.service.js';
+import { Attachment, AIResponse } from '../models/interfaces';
+
+[... full previous code ...]

@@ -1,13 +1,15 @@
 // src/components/admin.component.ts
 
-import { Component, inject, signal, HostListener } from '@angular/core';
+import { Component, inject, signal, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StateService } from '../services/state.services.js';
-import { DocMetadata, ExtractionResult } from '../models/interfaces';
+import { DocMetadata, ExtractionResult, ScrapingSettings, ApprovedUrl, CrawlSettings, CrawlHistoryEntry, CrawlStatus, PendingQuery } from '../models/interfaces';
 import { AuthService } from '../services/auth.service.js';
 import { User } from '../models/interfaces.js';
 import { DocumentExtractionService } from '../services/document-extraction.service.js';
+import { WebScraperService, ScraperStats } from '../services/web-scraper.service.js';
+import { BackgroundCrawlerService } from '../services/background-crawler.service.js';
 
 
 
@@ -237,6 +239,368 @@ import { DocumentExtractionService } from '../services/document-extraction.servi
                   }
                 </div>
               </div>
+            </div>
+
+            <!-- Web Scraping Configuration -->
+            <div class="border border-[#D32F2F] p-4 sm:p-6 bg-black mt-6 sm:mt-8">
+              <h2 class="text-lg sm:text-xl font-bold mb-4 text-[#D32F2F]">Web Scraping Configuration</h2>
+              <p class="text-xs text-gray-500 mb-4">Configure how the AI searches for additional information from government websites.</p>
+              
+              <!-- Enable/Disable Scraping -->
+              <div class="flex items-center justify-between bg-[#111] p-4 mb-4 border border-gray-700">
+                <div>
+                  <div class="text-sm font-bold text-white">Enable Web Search</div>
+                  <div class="text-xs text-gray-400">Automatically search for additional information when needed</div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    [checked]="scrapingSettings().enabled"
+                    (change)="toggleScraping($event)"
+                    class="sr-only peer"
+                  >
+                  <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#D32F2F]"></div>
+                </label>
+              </div>
+
+              <!-- Auto Scrape on Low Confidence -->
+              <div class="flex items-center justify-between bg-[#111] p-4 mb-4 border border-gray-700">
+                <div>
+                  <div class="text-sm font-bold text-white">Auto-Scrape on Low Confidence</div>
+                  <div class="text-xs text-gray-400">Search web when knowledgebase confidence is below threshold</div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    [checked]="scrapingSettings().autoScrapeOnLowConfidence"
+                    (change)="toggleAutoScrape($event)"
+                    class="sr-only peer"
+                  >
+                  <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#D32F2F]"></div>
+                </label>
+              </div>
+
+              <!-- Confidence Threshold -->
+              <div class="mb-4">
+                <label class="block text-sm text-gray-400 mb-2">
+                  Knowledgebase Confidence Threshold: {{ scrapingSettings().minConfidenceThreshold * 100 }}%
+                </label>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  [value]="scrapingSettings().minConfidenceThreshold * 100"
+                  (input)="updateThreshold($event)"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#D32F2F]"
+                >
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+
+              <!-- Scraping Stats -->
+              <div class="mt-4 pt-4 border-t border-gray-800">
+                <div class="text-xs text-gray-500 mb-2">SCRAPING STATISTICS:</div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                  <div class="bg-[#111] p-2 border border-gray-700">
+                    <div class="text-lg font-bold text-[#D32F2F]">{{ scraperStats().totalScrapes }}</div>
+                    <div class="text-xs text-gray-500">Total Scrapes</div>
+                  </div>
+                  <div class="bg-[#111] p-2 border border-gray-700">
+                    <div class="text-lg font-bold text-green-500">{{ scraperStats().cacheHits }}</div>
+                    <div class="text-xs text-gray-500">Cache Hits</div>
+                  </div>
+                  <div class="bg-[#111] p-2 border border-gray-700">
+                    <div class="text-lg font-bold text-red-500">{{ scraperStats().failedScrapes }}</div>
+                    <div class="text-xs text-gray-500">Failed</div>
+                  </div>
+                  <div class="bg-[#111] p-2 border border-gray-700">
+                    <div class="text-lg font-bold text-blue-500">{{ Math.round(scraperStats().totalContentChars / 1024) }}KB</div>
+                    <div class="text-xs text-gray-500">Content</div>
+                  </div>
+                </div>
+              </div>
+
+<!-- Clear Cache Button -->
+              <button 
+                (click)="clearScraperCache()"
+                class="mt-4 w-full border border-gray-700 text-gray-400 py-2 hover:border-[#D32F2F] hover:text-white transition-colors text-sm"
+              >
+                🗑️ Clear Scraping Cache
+              </button>
+            </div>
+
+            <!-- Pending Queries Section -->
+            <div class="border border-yellow-900/50 p-4 sm:p-6 bg-black/50 mt-6 sm:mt-8">
+              <h2 class="text-lg sm:text-xl font-bold mb-4 text-yellow-500">🔄 Pending User Queries ({{ pendingCount() }})</h2>
+              <p class="text-xs text-gray-500 mb-4">Unanswered user questions queued for backend research.</p>
+              
+              @if (pendingQueries().length === 0) {
+                <div class="text-center py-8 text-gray-600">
+                  <p class="text-sm">No pending queries</p>
+                  <p class="text-xs mt-2">All user questions answered from knowledgebase</p>
+                </div>
+              } @else {
+                <div class="space-y-3 max-h-64 overflow-y-auto">
+                  @for (query of pendingQueries().slice(0, 10); track query.id) {
+                    <div class="bg-[#111] p-3 border border-gray-700 rounded text-xs">
+                      <div class="font-mono text-gray-300 truncate">{{ query.query }}</div>
+                      <div class="text-gray-500 text-[10px] mt-1 flex gap-4">
+                        <span>{{ query.timestamp | date:'short' }}</span>
+                        <span class="text-blue-500">{{ query.context.state || 'National' }} / {{ query.context.sector }}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+                
+                <div class="flex gap-2 mt-4 pt-4 border-t border-gray-800">
+                  <button 
+                    (click)="processPendingQueries()"
+                    class="flex-1 bg-yellow-600 text-white px-4 py-2 font-bold hover:bg-yellow-500 transition-colors text-sm"
+                  >
+                    ⚙️ PROCESS PENDING QUERIES
+                  </button>
+                  <button 
+                    (click)="clearPendingQueries()"
+                    class="flex-1 border border-yellow-900 text-yellow-400 px-4 py-2 font-bold hover:bg-yellow-900 hover:text-yellow-100 transition-colors text-sm"
+                  >
+                    🗑️ CLEAR PENDING
+                  </button>
+                </div>
+              }
+            </div>
+
+            <!-- URL Management & Background Crawling -->
+            <div class="border border-[#D32F2F] p-4 sm:p-6 bg-black mt-6 sm:mt-8">
+              <h2 class="text-lg sm:text-xl font-bold mb-4 text-[#D32F2F]">5. URL Management & Background Crawling</h2>
+              <p class="text-xs text-gray-500 mb-4">Configure URLs to crawl in the background and build your knowledgebase automatically.</p>
+              
+              <!-- Background Crawling Enable/Disable -->
+              <div class="flex items-center justify-between bg-[#111] p-4 mb-4 border border-gray-700">
+                <div>
+                  <div class="text-sm font-bold text-white">Enable Background Crawling</div>
+                  <div class="text-xs text-gray-400">Automatically crawl URLs at scheduled intervals</div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    [checked]="crawlSettings().enabled"
+                    (change)="toggleBackgroundCrawl($event)"
+                    class="sr-only peer"
+                  >
+                  <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                </label>
+              </div>
+
+              <!-- Crawl Interval -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">Crawl Interval</label>
+                  <select 
+                    [value]="crawlSettings().intervalHours"
+                    (change)="updateCrawlInterval($event)"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
+                  >
+                    <option value="1">Every 1 hour</option>
+                    <option value="6">Every 6 hours</option>
+                    <option value="12">Every 12 hours</option>
+                    <option value="24">Every 24 hours</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">Max Pages per URL</label>
+                  <select 
+                    [value]="crawlSettings().maxPagesPerUrl"
+                    (change)="updateMaxPages($event)"
+                    class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[48px]"
+                  >
+                    <option value="3">3 pages</option>
+                    <option value="5">5 pages</option>
+                    <option value="10">10 pages</option>
+                    <option value="20">20 pages</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Crawl Status -->
+              @if (crawlStatus().isRunning || crawlStatus().lastCrawlTime) {
+                <div class="bg-[#111] p-3 mb-4 border border-gray-700">
+                  <div class="flex justify-between items-center text-xs">
+                    <div>
+                      @if (crawlStatus().isRunning) {
+                        <span class="text-yellow-500">🔄 Crawling: {{ crawlStatus().currentUrl }}</span>
+                        <span class="text-gray-400 ml-2">({{ crawlStatus().completedUrls }}/{{ crawlStatus().totalUrls }})</span>
+                      } @else {
+                        <span class="text-green-500">✓ Last crawl: {{ crawlStatus().lastCrawlTime | date:'short' }}</span>
+                      }
+                    </div>
+                    @if (crawlStatus().nextCrawlTime && !crawlStatus().isRunning) {
+                      <span class="text-gray-500">Next: {{ crawlStatus().nextCrawlTime | date:'short' }}</span>
+                    }
+                  </div>
+                </div>
+              }
+
+              <!-- Manual Crawl Buttons -->
+              <div class="flex gap-2 mb-4">
+                <button 
+                  (click)="crawlNow()"
+                  [disabled]="crawlStatus().isRunning"
+                  class="flex-1 bg-[#D32F2F] text-white px-4 py-2 font-bold hover:bg-red-700 transition-colors text-sm disabled:opacity-50 min-h-[44px]"
+                >
+                  {{ crawlStatus().isRunning ? 'CRAWLING...' : '🚀 CRAWL NOW' }}
+                </button>
+                <button 
+                  (click)="clearCrawlHistory()"
+                  class="border border-gray-700 text-gray-400 px-4 py-2 hover:border-[#D32F2F] hover:text-white transition-colors text-sm min-h-[44px]"
+                >
+                  🗑️ Clear
+                </button>
+              </div>
+
+              <!-- Add New URL Form -->
+              <div class="border-t border-gray-800 pt-4 mt-4">
+                <h3 class="text-sm font-bold text-white mb-3">➕ Add New URL</h3>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs text-gray-400 mb-1">Website URL *</label>
+                    <input 
+                      [(ngModel)]="newUrl.url"
+                      placeholder="https://www.example.gov.in"
+                      class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[44px]"
+                    >
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs text-gray-400 mb-1">Title *</label>
+                      <input 
+                        [(ngModel)]="newUrl.title"
+                        placeholder="e.g., GST Portal"
+                        class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[44px]"
+                      >
+                    </div>
+                    <div>
+                      <label class="block text-xs text-gray-400 mb-1">Category</label>
+                      <select 
+                        [(ngModel)]="newUrl.category"
+                        class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[44px]"
+                      >
+                        <option value="Central Government">Central Government</option>
+                        <option value="State Government">State Government</option>
+                        <option value="Tax & Revenue">Tax & Revenue</option>
+                        <option value="MSME">MSME</option>
+                        <option value="Business & Startups">Business & Startups</option>
+                        <option value="Labour & Employment">Labour & Employment</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs text-gray-400 mb-1">Ministry/Department</label>
+                      <input 
+                        [(ngModel)]="newUrl.ministry"
+                        placeholder="e.g., Ministry of Finance"
+                        class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[44px]"
+                      >
+                    </div>
+                    <div>
+                      <label class="block text-xs text-gray-400 mb-1">Priority</label>
+                      <select 
+                        [(ngModel)]="newUrl.crawlPriority"
+                        class="w-full bg-[#111] border border-gray-700 p-2 text-sm text-white focus:border-[#D32F2F] outline-none min-h-[44px]"
+                      >
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button 
+                    (click)="addCrawlUrl()"
+                    class="w-full border border-gray-700 text-white py-2 hover:bg-[#D32F2F] hover:border-[#D32F2F] transition-colors text-sm min-h-[44px]"
+                  >
+                    ➕ ADD URL
+                  </button>
+                </div>
+              </div>
+
+              <!-- URL List -->
+              <div class="border-t border-gray-800 pt-4 mt-4">
+                <h3 class="text-sm font-bold text-white mb-3">📋 Crawl URLs ({{ getApprovedUrls().length }})</h3>
+                <div class="max-h-64 overflow-y-auto space-y-2">
+                  @for (url of getApprovedUrls(); track url.id) {
+                    <div class="flex items-center justify-between bg-[#111] p-2 border border-gray-700 text-xs">
+                      <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                          <input 
+                            type="checkbox" 
+                            [checked]="url.enabled"
+                            (change)="toggleCrawlUrl(url.id)"
+                            class="sr-only peer"
+                          >
+                          <div class="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
+                        <div class="min-w-0 flex-1">
+                          <div class="text-white truncate">{{ url.title }}</div>
+                          <div class="text-gray-500 truncate">{{ url.url }}</div>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2 flex-shrink-0">
+                        <span class="text-gray-500 text-[10px]">
+                          @if (url.lastScraped) {
+                            {{ url.lastScraped | date:'shortDate' }}
+                          }
+                        </span>
+                        <span class="px-1 py-0.5 rounded text-[10px]" 
+                          [class.bg-red-900]="url.crawlPriority === 'high'"
+                          [class.text-red-300]="url.crawlPriority === 'high'"
+                          [class.bg-yellow-900]="url.crawlPriority === 'medium'"
+                          [class.text-yellow-300]="url.crawlPriority === 'medium'"
+                          [class.bg-gray-700]="url.crawlPriority === 'low'"
+                          [class.text-gray-300]="url.crawlPriority === 'low'"
+                        >
+                          {{ url.crawlPriority || 'medium' }}
+                        </span>
+                        <button 
+                          (click)="removeCrawlUrl(url.id)"
+                          class="text-red-500 hover:text-red-400 py-1 px-1"
+                          title="Remove URL"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <!-- Crawl History -->
+              @if (crawlHistory().length > 0) {
+                <div class="border-t border-gray-800 pt-4 mt-4">
+                  <h3 class="text-sm font-bold text-white mb-3">📜 Crawl History</h3>
+                  <div class="max-h-32 overflow-y-auto space-y-1">
+                    @for (entry of crawlHistory().slice(0, 10); track entry.id) {
+                      <div class="flex items-center justify-between bg-[#111] p-2 border border-gray-700 text-xs">
+                        <div class="min-w-0 flex-1">
+                          <div class="text-white truncate">{{ entry.urlTitle }}</div>
+                          <div class="text-gray-500 text-[10px]">{{ entry.startedAt | date:'medium' }}</div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                          @if (entry.status === 'completed') {
+                            <span class="text-green-500">✓ {{ entry.itemsIndexed }} indexed</span>
+                          } @else if (entry.status === 'failed') {
+                            <span class="text-red-500">✗ {{ entry.error }}</span>
+                          } @else {
+                            <span class="text-yellow-500">🔄 Running</span>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
             </div>
 
 
@@ -675,6 +1039,67 @@ import { DocumentExtractionService } from '../services/document-extraction.servi
 export class AdminComponent {
   stateService = inject(StateService);
   extractionService = inject(DocumentExtractionService);
+  webScraperService = inject(WebScraperService);
+  backgroundCrawlerService = inject(BackgroundCrawlerService);
+  
+  // Math helper for template
+  Math = Math;
+  
+  // Scraping settings signal
+  scrapingSettings = signal<ScrapingSettings>({
+    enabled: true,
+    minConfidenceThreshold: 0.7,
+    maxResultsPerQuery: 5,
+    cacheDurationHours: 24,
+    autoScrapeOnLowConfidence: true
+  });
+  
+  // Scraping stats
+  scraperStats = signal<ScraperStats>({
+    totalScrapes: 0,
+    cacheHits: 0,
+    failedScrapes: 0,
+    totalContentChars: 0
+  });
+  
+  // Crawl settings signal
+  crawlSettings = signal<CrawlSettings>({
+    enabled: false,
+    intervalHours: 6,
+    maxPagesPerUrl: 5,
+    maxContentLength: 15000,
+    crawlDelayMs: 2000
+  });
+
+  // Pending Queries
+  pendingQueries = computed(() => this.stateService.getPendingQueries());
+  pendingCount = computed(() => this.pendingQueries().length);
+  
+  // Auto-refresh interval
+  private refreshInterval: any;
+  
+  // Crawl status signal
+  crawlStatus = signal<CrawlStatus>({
+    isRunning: false,
+    currentUrl: null,
+    totalUrls: 0,
+    completedUrls: 0,
+    lastCrawlTime: null,
+    nextCrawlTime: null
+  });
+  
+  // Crawl history signal
+  crawlHistory = signal<CrawlHistoryEntry[]>([]);
+  
+  // URL Management form
+  newUrl = {
+    url: '',
+    title: '',
+    category: 'Central Government',
+    ministry: '',
+    country: 'India',
+    crawlPriority: 'medium' as 'high' | 'medium' | 'low'
+  };
   
   // Multi-provider API Keys
   apiKeys = {
@@ -705,7 +1130,7 @@ export class AdminComponent {
     tags: []
   };
 
-  constructor() {
+constructor() {
     // Load all provider keys
     this.apiKeys.gemini = this.stateService.getApiKey('gemini');
     this.apiKeys.openrouter = this.stateService.getApiKey('openrouter');
@@ -714,6 +1139,42 @@ export class AdminComponent {
     this.apiKeys.groq = this.stateService.getApiKey('groq');
 
     this.mapsKeyInput = this.stateService.googleMapsApiKey();
+    
+    // Load scraping settings
+    this.scrapingSettings.set(this.stateService.getScrapingSettings());
+    
+    // Load crawl settings
+    this.crawlSettings.set(this.stateService.getCrawlSettings());
+    this.crawlHistory.set(this.stateService.getCrawlHistory());
+    this.crawlStatus.set(this.stateService.getCrawlStatus());
+    
+    // Load initial stats
+    this.updateScraperStats();
+
+    // Start auto-refresh for status
+    this.startAutoRefresh();
+  }
+
+  startAutoRefresh() {
+    if (this.refreshInterval) clearInterval(this.refreshInterval);
+    
+    this.refreshInterval = setInterval(() => {
+      this.updateScraperStats();
+      this.crawlStatus.set(this.stateService.getCrawlStatus());
+      this.crawlHistory.set(this.stateService.getCrawlHistory());
+      this.crawlSettings.set(this.stateService.getCrawlSettings());
+    }, 30000); // 30 seconds
+  }
+
+  ngOnDestroy() {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+  }
+  
+  // Update scraper stats from service
+  updateScraperStats() {
+    this.scraperStats.set(this.webScraperService.getStats());
   }
 
   @HostListener('document:keydown.escape')
@@ -1027,6 +1488,51 @@ You can still paste the document content manually below.
     return 'doc-' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
   }
 
+  // Web Scraping Configuration Methods
+  
+  toggleScraping(event: any) {
+    const enabled = event.target.checked;
+    this.stateService.updateScrapingSettings({ enabled });
+    this.scrapingSettings.set(this.stateService.getScrapingSettings());
+    
+    this.stateService.addNotification({
+      type: 'success',
+      message: `Web search ${enabled ? 'enabled' : 'disabled'}`,
+      duration: 2000
+    });
+  }
+  
+  toggleAutoScrape(event: any) {
+    const autoScrapeOnLowConfidence = event.target.checked;
+    this.stateService.updateScrapingSettings({ autoScrapeOnLowConfidence });
+    this.scrapingSettings.set(this.stateService.getScrapingSettings());
+    
+    this.stateService.addNotification({
+      type: 'info',
+      message: `Auto-scrape ${autoScrapeOnLowConfidence ? 'enabled' : 'disabled'}`,
+      duration: 2000
+    });
+  }
+  
+  updateThreshold(event: any) {
+    const value = parseInt(event.target.value) / 100;
+    this.stateService.updateScrapingSettings({ minConfidenceThreshold: value });
+    this.scrapingSettings.set(this.stateService.getScrapingSettings());
+  }
+  
+  clearScraperCache() {
+    this.webScraperService.clearCache();
+    this.updateScraperStats();
+    
+    this.stateService.addNotification({
+      type: 'success',
+      message: 'Scraping cache cleared',
+      duration: 2000
+    });
+  }
+  
+  // End Web Scraping Configuration Methods
+  
   clearProviderKey(provider: 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq') {
     if (!confirm(`Are you sure you want to remove the ${provider} API key?`)) {
       return;
@@ -1094,7 +1600,7 @@ You can still paste the document content manually below.
     return users.filter((u: User) => u.role === 'admin');
   }
 
-  // Remove admin user
+// Remove admin user
   removeAdmin(userId: string) {
     if (!confirm('Are you sure you want to remove this admin user?')) {
       return;
@@ -1106,5 +1612,189 @@ You can still paste the document content manually below.
       message: 'Admin user removed',
       duration: 3000
     });
+  }
+  
+  // ==================== URL MANAGEMENT & CRAWLING ====================
+  
+  // Get all approved URLs
+  getApprovedUrls(): ApprovedUrl[] {
+    return this.stateService.getApprovedUrls();
+  }
+  
+  // Add new URL for crawling
+  addCrawlUrl() {
+    if (!this.newUrl.url || !this.newUrl.title) {
+      this.stateService.addNotification({
+        type: 'warning',
+        message: 'Please enter URL and title',
+        duration: 2000
+      });
+      return;
+    }
+    
+    // Validate URL
+    try {
+      new URL(this.newUrl.url);
+    } catch (e) {
+      this.stateService.addNotification({
+        type: 'error',
+        message: 'Please enter a valid URL',
+        duration: 2000
+      });
+      return;
+    }
+    
+    this.stateService.addApprovedUrl({
+      url: this.newUrl.url,
+      title: this.newUrl.title,
+      category: this.newUrl.category,
+      ministry: this.newUrl.ministry,
+      country: this.newUrl.country,
+      enabled: true,
+      crawlPriority: this.newUrl.crawlPriority
+    });
+    
+    this.stateService.addNotification({
+      type: 'success',
+      message: `URL "${this.newUrl.title}" added for crawling`,
+      duration: 3000
+    });
+    
+    // Reset form
+    this.newUrl = {
+      url: '',
+      title: '',
+      category: 'Central Government',
+      ministry: '',
+      country: 'India',
+      crawlPriority: 'medium'
+    };
+  }
+  
+  // Remove URL
+  removeCrawlUrl(id: string) {
+    if (!confirm('Are you sure you want to remove this URL?')) {
+      return;
+    }
+    
+    this.stateService.removeApprovedUrl(id);
+    this.stateService.addNotification({
+      type: 'info',
+      message: 'URL removed',
+      duration: 2000
+    });
+  }
+  
+  // Toggle URL enabled status
+  toggleCrawlUrl(id: string) {
+    this.stateService.toggleApprovedUrl(id);
+  }
+  
+  // Crawl settings methods
+  toggleBackgroundCrawl(event: any) {
+    const enabled = event.target.checked;
+    
+    if (enabled) {
+      this.backgroundCrawlerService.enableCrawling();
+    } else {
+      this.backgroundCrawlerService.disableCrawling();
+    }
+    
+    this.crawlSettings.set(this.stateService.getCrawlSettings());
+    this.crawlStatus.set(this.stateService.getCrawlStatus());
+    
+    this.stateService.addNotification({
+      type: 'success',
+      message: `Background crawling ${enabled ? 'enabled' : 'disabled'}`,
+      duration: 2000
+    });
+  }
+  
+  updateCrawlInterval(event: any) {
+    const intervalHours = parseInt(event.target.value);
+    this.backgroundCrawlerService.updateSettings({ intervalHours });
+    this.crawlSettings.set(this.stateService.getCrawlSettings());
+  }
+  
+  updateMaxPages(event: any) {
+    const maxPagesPerUrl = parseInt(event.target.value);
+    this.backgroundCrawlerService.updateSettings({ maxPagesPerUrl });
+    this.crawlSettings.set(this.stateService.getCrawlSettings());
+  }
+  
+  // Manual crawl actions
+  async processPendingQueries() {
+    await this.backgroundCrawlerService.processPending();
+    
+    this.stateService.addNotification({
+      type: 'success',
+      message: 'Processed pending queries',
+      duration: 2000
+    });
+  }
+
+  clearPendingQueries() {
+    if (!confirm('Clear all pending queries?')) return;
+    
+    this.stateService.clearPendingQueries();
+    
+    this.stateService.addNotification({
+      type: 'info',
+      message: 'Pending queries cleared',
+      duration: 2000
+    });
+  }
+
+  async crawlNow() {
+    if (this.crawlStatus().isRunning) {
+      this.stateService.addNotification({
+        type: 'warning',
+        message: 'Crawl already in progress',
+        duration: 2000
+      });
+      return;
+    }
+    
+    this.stateService.addNotification({
+      type: 'info',
+      message: 'Starting crawl...',
+      duration: 2000
+    });
+    
+    // Update status
+    this.crawlStatus.set(this.stateService.getCrawlStatus());
+    
+    await this.backgroundCrawlerService.crawlNow();
+    
+    // Refresh data
+    this.crawlHistory.set(this.stateService.getCrawlHistory());
+    this.crawlStatus.set(this.stateService.getCrawlStatus());
+    
+    this.stateService.addNotification({
+      type: 'success',
+      message: 'Crawl completed!',
+      duration: 3000
+    });
+  }
+  
+  clearCrawlHistory() {
+    if (!confirm('Are you sure you want to clear crawl history?')) {
+      return;
+    }
+    
+    this.backgroundCrawlerService.clearHistory();
+    this.crawlHistory.set(this.stateService.getCrawlHistory());
+    
+    this.stateService.addNotification({
+      type: 'info',
+      message: 'Crawl history cleared',
+      duration: 2000
+    });
+  }
+  
+  // Refresh crawl status (called periodically)
+  refreshCrawlStatus() {
+    this.crawlStatus.set(this.stateService.getCrawlStatus());
+    this.crawlHistory.set(this.stateService.getCrawlHistory());
   }
 }

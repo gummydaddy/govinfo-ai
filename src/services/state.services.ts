@@ -1,6 +1,6 @@
 // src/services/state.service.ts
 
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import {
   User,
   DocMetadata,
@@ -8,8 +8,15 @@ import {
   ChatMessage,
   SavedProject,
   AppView,
-  Notification
+  Notification,
+  ScrapingSettings,
+  ApprovedUrl,
+  CrawlSettings,
+  CrawlHistoryEntry,
+  CrawlStatus,
+  PendingQuery
 } from '../models/interfaces';
+import { KnowledgebaseService } from './knowledgebase.service.js';
 
 @Injectable({
   providedIn: 'root'
@@ -376,6 +383,232 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
   // ========== ONBOARDING STATE ==========
   readonly hasCompletedOnboarding = signal<boolean>(false);
   
+  // ========== WEB SCRAPING SETTINGS ==========
+  readonly scrapingSettings = signal<ScrapingSettings>({
+    enabled: true,
+    minConfidenceThreshold: 0.7,
+    maxResultsPerQuery: 5,
+    cacheDurationHours: 24,
+    autoScrapeOnLowConfidence: true
+  });
+  
+// ========== APPROVED URLs FOR SCRAPING ==========
+  // Note: Many government sites have anti-bot protection (403 errors)
+  // Only verified working sites are enabled by default
+  readonly approvedUrls = signal<ApprovedUrl[]>([
+    {
+      id: 'url-1',
+      url: 'https://www.startupindia.gov.in',
+      title: 'Startup India',
+      category: 'Business & Startups',
+      ministry: 'DPIIT',
+      country: 'India',
+      enabled: true,
+      addedAt: Date.now(),
+      crawlPriority: 'high'
+    },
+    {
+      id: 'url-2',
+      url: 'https://www.udyamregistration.gov.in',
+      title: 'Udyam Registration',
+      category: 'MSME',
+      ministry: 'Ministry of MSME',
+      country: 'India',
+      enabled: true,
+      addedAt: Date.now(),
+      crawlPriority: 'high'
+    },
+    {
+      id: 'url-3',
+      url: 'https://www.epfindia.gov.in',
+      title: 'EPFO',
+      category: 'Labour & Employment',
+      ministry: 'Ministry of Labour',
+      country: 'India',
+      enabled: true,
+      addedAt: Date.now(),
+      crawlPriority: 'medium'
+    },
+    {
+      id: 'url-4',
+      url: 'https://www.niti.gov.in',
+      title: 'NITI Aayog',
+      category: 'Policy',
+      ministry: 'NITI Aayog',
+      country: 'India',
+      enabled: true,
+      addedAt: Date.now(),
+      crawlPriority: 'medium'
+    },
+    {
+      id: 'url-5',
+      url: 'https://www.india.gov.in',
+      title: 'National Portal of India',
+      category: 'Central Government',
+      ministry: 'Government of India',
+      country: 'India',
+      enabled: false,
+      addedAt: Date.now(),
+      crawlPriority: 'low'
+    },
+    {
+      id: 'url-6',
+      url: 'https://www.gst.gov.in',
+      title: 'GST Portal',
+      category: 'Tax & Revenue',
+      ministry: 'Ministry of Finance',
+      country: 'India',
+      enabled: false,
+      addedAt: Date.now(),
+      crawlPriority: 'low'
+    },
+    {
+      id: 'url-7',
+      url: 'https://www.mca.gov.in',
+      title: 'Ministry of Corporate Affairs',
+      category: 'Corporate',
+      ministry: 'MCA',
+      country: 'India',
+      enabled: false,
+      addedAt: Date.now(),
+      crawlPriority: 'low'
+    }
+  ]);
+  
+  // ========== CRAWL SETTINGS ==========
+  readonly crawlSettings = signal<CrawlSettings>({
+    enabled: false,
+    intervalHours: 6,
+    maxPagesPerUrl: 5,
+    maxContentLength: 15000,
+    crawlDelayMs: 2000
+  });
+  
+  // ========== CRAWL HISTORY ==========
+  readonly crawlHistory = signal<CrawlHistoryEntry[]>([]);
+  
+  // ========== CRAWL STATUS ==========
+  readonly crawlStatus = signal<CrawlStatus>({
+    isRunning: false,
+    currentUrl: null,
+    totalUrls: 0,
+    completedUrls: 0,
+    lastCrawlTime: null,
+    nextCrawlTime: null
+  });
+
+  // ========== PENDING QUERIES ==========
+  readonly pendingQueries = signal<PendingQuery[]>([]);
+
+  /**
+   * Get pending queries
+   */
+  getPendingQueries(): PendingQuery[] {
+    return this.pendingQueries();
+  }
+
+  /**
+   * Add pending query (deduplicate by tokens + context)
+   */
+  addPendingQuery(query: string): void {
+    const context = this.userContext();
+    const tokens = this.tokenizeQuery(query); // Will use shared tokenize later
+
+    // Check for duplicate (same tokens + context)
+    const existing = this.pendingQueries().find(p => 
+      this.tokensMatch(p.tokens, tokens) &&
+      p.context.country === context.country &&
+      p.context.state === context.state &&
+      p.context.sector === context.sector
+    );
+
+    if (existing) {
+      console.log('[StateService] Duplicate pending query skipped');
+      return;
+    }
+
+    const newQuery: PendingQuery = {
+      id: this.generateId(),
+      query,
+      tokens,
+      context,
+      timestamp: Date.now()
+    };
+
+    let updated = [newQuery, ...this.pendingQueries()];
+    // Limit to 100 most recent
+    if (updated.length > 100) {
+      updated = updated.slice(0, 100);
+    }
+
+    this.pendingQueries.set(updated);
+    this.savePendingQueriesToLocalStorage();
+  }
+
+  /**
+   * Remove pending query by ID
+   */
+  removePendingQuery(id: string): void {
+    this.pendingQueries.update(queries => queries.filter(q => q.id !== id));
+    this.savePendingQueriesToLocalStorage();
+  }
+
+  /**
+   * Remove pending queries by tokens match
+   */
+  removePendingByTokens(tokens: string[]): void {
+    this.pendingQueries.update(queries => 
+      queries.filter(q => !this.tokensMatch(q.tokens, tokens))
+    );
+    this.savePendingQueriesToLocalStorage();
+  }
+
+  /**
+   * Clear all pending queries
+   */
+  clearPendingQueries(): void {
+    this.pendingQueries.set([]);
+    localStorage.removeItem('govinfo_pending_queries');
+  }
+
+  /**
+   * Simple token match (at least 70% overlap)
+   */
+  private tokensMatch(t1: string[], t2: string[]): boolean {
+    const set1 = new Set(t1);
+    const intersection = t2.filter(t => set1.has(t)).length;
+    return intersection / t2.length >= 0.7;
+  }
+
+  /**
+   * Use KB tokenize (inject dependency)
+   */
+  private kbService = inject(KnowledgebaseService);
+
+  private tokenizeQuery(query: string): string[] {
+    return this.kbService.tokenize(query);
+  }
+
+  private savePendingQueriesToLocalStorage(): void {
+    try {
+      localStorage.setItem('govinfo_pending_queries', JSON.stringify(this.pendingQueries()));
+    } catch (e) {
+      console.error('Failed to save pending queries:', e);
+    }
+  }
+
+  private loadPendingQueriesFromLocalStorage(): void {
+    try {
+      const stored = localStorage.getItem('govinfo_pending_queries');
+      if (stored) {
+        const queries = JSON.parse(stored) as PendingQuery[];
+        this.pendingQueries.set(queries.slice(0, 100)); // Limit
+      }
+    } catch (e) {
+      console.error('Failed to load pending queries:', e);
+    }
+  }
+  
   // ========== COMPUTED STATE ==========
   
   /**
@@ -386,10 +619,22 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
     const allDocs = this.documents();
     
     return allDocs.filter(doc => 
-      (doc.country === ctx.country) && 
-      (doc.state === 'All' || doc.state === ctx.state || ctx.state === '')
+      (doc.country === ctx.country || doc.country === 'All') && 
+      (doc.state === 'All' || doc.state === ctx.state || ctx.state === '') &&
+      (doc.officialSource !== false)  // Only official or undefined (legacy docs)
     );
   });
+
+  /**
+   * Get only official documents (uploaded via admin)
+   */
+  readonly officialDocuments = computed(() => {
+    return this.documents().filter(doc => doc.officialSource === true);
+  });
+
+  getOfficialDocuments(): DocMetadata[] {
+    return this.officialDocuments();
+  }
   
   /**
    * Get available states from documents (deduplicated and normalized)
@@ -460,8 +705,9 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
   });
   
   // ========== CONSTRUCTOR ==========
-  constructor() {
+constructor() {
     this.loadFromLocalStorage();
+    this.loadCrawlSettingsFromLocalStorage();
   }
   
   // ========== PRIVATE METHODS ==========
@@ -581,9 +827,10 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
   // --- Documents ---
   addDocument(doc: DocMetadata) {
     // Normalize the state name before storing to ensure consistency
-    const normalizedDoc = {
+    const normalizedDoc: DocMetadata = {
       ...doc,
-      state: doc.state ? this.normalizeStateName(doc.state) : doc.state
+      state: doc.state ? this.normalizeStateName(doc.state) : doc.state,
+      officialSource: true  // Admin uploads are official by default
     };
     this.documents.update(docs => [normalizedDoc, ...docs]);
     this.saveDocumentsToLocalStorage();
@@ -781,5 +1028,197 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
   
   private generateId(): string {
     return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+  }
+  
+  // ========== WEB SCRAPING METHODS ==========
+  
+  /**
+   * Get current scraping settings
+   */
+  getScrapingSettings(): ScrapingSettings {
+    return this.scrapingSettings();
+  }
+  
+  /**
+   * Update scraping settings
+   */
+  updateScrapingSettings(settings: Partial<ScrapingSettings>): void {
+    this.scrapingSettings.update(current => ({ ...current, ...settings }));
+    localStorage.setItem('govinfo_scraping_settings', JSON.stringify(this.scrapingSettings()));
+  }
+  
+  /**
+   * Get all approved URLs
+   */
+  getApprovedUrls(): ApprovedUrl[] {
+    return this.approvedUrls();
+  }
+  
+  /**
+   * Add a new approved URL
+   */
+  addApprovedUrl(url: Omit<ApprovedUrl, 'id' | 'addedAt'>): void {
+    const newUrl: ApprovedUrl = {
+      ...url,
+      id: 'url-' + this.generateId(),
+      addedAt: Date.now()
+    };
+    this.approvedUrls.update(urls => [...urls, newUrl]);
+    this.saveApprovedUrlsToLocalStorage();
+  }
+  
+  /**
+   * Remove an approved URL
+   */
+  removeApprovedUrl(id: string): void {
+    this.approvedUrls.update(urls => urls.filter(u => u.id !== id));
+    this.saveApprovedUrlsToLocalStorage();
+  }
+  
+/**
+   * Toggle URL enabled status
+   */
+  toggleApprovedUrl(id: string): void {
+    this.approvedUrls.update(urls => 
+      urls.map(u => u.id === id ? { ...u, enabled: !u.enabled } : u)
+    );
+    this.saveApprovedUrlsToLocalStorage();
+  }
+  
+  /**
+   * Save approved URLs to localStorage
+   */
+  private saveApprovedUrlsToLocalStorage(): void {
+    try {
+      localStorage.setItem('govinfo_approved_urls', JSON.stringify(this.approvedUrls()));
+    } catch (e) {
+      console.error('Failed to save approved URLs:', e);
+    }
+  }
+  
+  /**
+   * Load approved URLs from localStorage
+   */
+  private loadApprovedUrlsFromLocalStorage(): void {
+    try {
+      const stored = localStorage.getItem('govinfo_approved_urls');
+      if (stored) {
+        const urls = JSON.parse(stored) as ApprovedUrl[];
+        // Merge with defaults if needed
+        if (urls.length > 0) {
+          this.approvedUrls.set(urls);
+        }
+      }
+      
+      // Also load scraping settings
+      const settingsStr = localStorage.getItem('govinfo_scraping_settings');
+      if (settingsStr) {
+        const settings = JSON.parse(settingsStr) as ScrapingSettings;
+        this.scrapingSettings.set(settings);
+      }
+    } catch (e) {
+      console.error('Failed to load scraping settings:', e);
+    }
+  }
+  
+  // ========== CRAWL SETTINGS METHODS ==========
+  
+  /**
+   * Get current crawl settings
+   */
+  getCrawlSettings(): CrawlSettings {
+    return this.crawlSettings();
+  }
+  
+  /**
+   * Update crawl settings
+   */
+  updateCrawlSettings(settings: Partial<CrawlSettings>): void {
+    this.crawlSettings.update(current => ({ ...current, ...settings }));
+    localStorage.setItem('govinfo_crawl_settings', JSON.stringify(this.crawlSettings()));
+  }
+  
+  /**
+   * Get crawl history
+   */
+  getCrawlHistory(): CrawlHistoryEntry[] {
+    return this.crawlHistory();
+  }
+  
+  /**
+   * Add crawl history entry
+   */
+  addCrawlHistory(entry: CrawlHistoryEntry): void {
+    this.crawlHistory.update(history => [entry, ...history].slice(0, 50)); // Keep last 50 entries
+    this.saveCrawlHistoryToLocalStorage();
+  }
+  
+  /**
+   * Update crawl history entry
+   */
+  updateCrawlHistory(id: string, updates: Partial<CrawlHistoryEntry>): void {
+    this.crawlHistory.update(history => 
+      history.map(e => e.id === id ? { ...e, ...updates } : e)
+    );
+    this.saveCrawlHistoryToLocalStorage();
+  }
+  
+  /**
+   * Clear crawl history
+   */
+  clearCrawlHistory(): void {
+    this.crawlHistory.set([]);
+    localStorage.removeItem('govinfo_crawl_history');
+  }
+  
+  /**
+   * Get crawl status
+   */
+  getCrawlStatus(): CrawlStatus {
+    return this.crawlStatus();
+  }
+  
+  /**
+   * Update crawl status
+   */
+  updateCrawlStatus(status: Partial<CrawlStatus>): void {
+    this.crawlStatus.update(current => ({ ...current, ...status }));
+  }
+  
+  /**
+   * Save crawl history to localStorage
+   */
+  private saveCrawlHistoryToLocalStorage(): void {
+    try {
+      localStorage.setItem('govinfo_crawl_history', JSON.stringify(this.crawlHistory()));
+    } catch (e) {
+      console.error('Failed to save crawl history:', e);
+    }
+  }
+  
+  /**
+   * Load crawl settings and history from localStorage
+   */
+  private loadCrawlSettingsFromLocalStorage(): void {
+    try {
+      // Load crawl settings
+      const crawlSettingsStr = localStorage.getItem('govinfo_crawl_settings');
+      if (crawlSettingsStr) {
+        const settings = JSON.parse(crawlSettingsStr) as CrawlSettings;
+        this.crawlSettings.set(settings);
+      }
+      
+      // Load crawl history
+      const historyStr = localStorage.getItem('govinfo_crawl_history');
+      if (historyStr) {
+        const history = JSON.parse(historyStr) as CrawlHistoryEntry[];
+        this.crawlHistory.set(history);
+      }
+
+      // Load pending queries
+      this.loadPendingQueriesFromLocalStorage();
+    } catch (e) {
+      console.error('Failed to load crawl settings:', e);
+    }
   }
 }

@@ -225,18 +225,23 @@ import { MarkdownPipe } from '../pipes/markdown.pipe';
                   <!-- Grounding Sources -->
                   @if (msg.sources && msg.sources.length > 0) {
                     <div class="mt-4 pt-4 border-t border-gray-800">
-                      <div class="text-xs text-[#D32F2F] font-bold mb-2">📍 LIVE SOURCES</div>
-                      <div class="grid gap-2">
+                      <div class="text-xs text-[#D32F2F] font-bold mb-2">📍 SOURCES & REFERENCES</div>
+                      <div class="grid gap-3">
                         @for (source of msg.sources; track $index) {
                           <a 
                             [href]="source.web?.uri || source.retrievedContext?.uri || '#'" 
                             target="_blank" 
-                            class="block bg-[#111] p-2 text-xs text-gray-300 hover:text-white hover:bg-gray-800 border border-gray-800 flex items-center gap-2 break-all"
+                            rel="noopener noreferrer"
+                            class="block bg-[#0f0f0f] p-3 text-xs text-gray-300 hover:text-white hover:bg-[#1a1a1a] border border-gray-700 hover:border-[#D32F2F] rounded-lg transition-all"
                           >
-                            <span>🔗</span> {{ source.web?.title || source.retrievedContext?.title || 'External Source' }}
+                            <div class="flex items-center justify-between mb-1">
+                              <span class="font-semibold text-white">{{ source.web?.title || source.retrievedContext?.title || 'External Source' }}</span>
+                              <span class="bg-[#D32F2F]/20 text-[#D32F2F] text-[10px] px-2 py-0.5 rounded">🌐 VISIT</span>
+                            </div>
+                            <div class="text-gray-500 text-[10px] truncate font-mono">{{ source.web?.uri || source.retrievedContext?.uri }}</div>
                           </a>
                         }
-                      </div>
+                      </div> REPLACE
                     </div>
                   }
                   
@@ -656,7 +661,7 @@ export class ChatComponent {
     }
 
     // Call AI with search flag
-    const response = await this.aiService.sendMessage(text, attachments, this.useLiveSearch);
+    const response = await this.aiService.sendMessage(text, attachments, false); // Disable live search for official-only
 
     this.isThinking.set(false);
     this.activeProvider.set('');
