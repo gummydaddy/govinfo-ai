@@ -1,5 +1,3 @@
-// src/services/web-scraper.service.ts - Enhanced Web Scraping Service
-
 import { Injectable, inject, signal } from '@angular/core';
 import { StateService } from './state.services.js';
 
@@ -45,6 +43,14 @@ export interface ScrapedContent {
     links?: { title: string; url: string }[];
     contactInfo?: string;
   };
+}
+
+/**
+ * Keyword-based scraping results - NEW for keyword crawling
+ */
+export interface KeywordScrapedResult extends ScrapedContent {
+  matchedKeywords: string[];
+  keywordDensity: number;
 }
 
 /**
@@ -132,6 +138,85 @@ export class WebScraperService {
     }
     
     return bestMatch;
+  }
+
+  /**
+   * Scrape approved sites for specific keywords - extracts relevant sections only
+   */
+  async scrapeByKeywords(keywords: string[]): Promise<KeywordScrapedResult[]> {
+    if (keywords.length === 0) return [];
+
+    console.log(`[WebScraper] Keyword search for: ${keywords.slice(0,5).join(', ')}...`);
+    
+    const enabledUrls = this.stateService.getApprovedUrls().filter(u => u.enabled);
+    const results: KeywordScrapedResult[] = [];
+
+    for (const url of enabledUrls) {
+      try {
+        const content = await this.scrapeUrl(url.url, url.title);
+        if (!content) continue;
+
+        // Find keyword matches and extract relevant sections
+        const keywordMatches = this.extractKeywordSections(content.content, keywords);
+        
+        for (const match of keywordMatches.slice(0, 2)) { // Top 2 sections per page
+          results.push({
+            ...content,
+            content: match.excerpt,
+            relevanceScore: match.score,
+            matchedKeywords: match.matchedKeywords,
+            keywordDensity: match.density,
+            snippet: `Keywords: ${match.matchedKeywords.join(', ')} - ${match.excerpt.substring(0, 150)}...`
+          });
+        }
+      } catch (error) {
+        console.log(`[KeywordScrape] Skipped ${url.url}:`, error);
+      }
+    }
+
+    // Sort by relevance
+    return results.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 8);
+  }
+
+  /**
+   * Extract sections containing keywords with context
+   */
+  private extractKeywordSections(content: string, keywords: string[]): { excerpt: string; score: number; matchedKeywords: string[]; density: number; start: number }[] {
+    const lowerContent = content.toLowerCase();
+    const keywordLower = keywords.map(k => k.toLowerCase());
+    const sections: { excerpt: string; score: number; matchedKeywords: string[]; density: number; start: number }[] = [];
+
+    // Split into paragraphs/sections
+    const paragraphs = lowerContent.split(/\n\s*\n|\r\n\r\n/).map(p => p.trim()).filter(p => p.length > 100);
+
+    for (let i = 0; i < paragraphs.length; i++) {
+      const para = paragraphs[i];
+      let score = 0;
+      const matched: string[] = [];
+      let keywordCount = 0;
+
+      for (const kw of keywordLower) {
+        const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\\\$&')}\\b`, 'gi');
+        keywordCount += (para.match(regex) || []).length;
+        if (keywordCount > 0) matched.push(kw);
+      }
+
+      if (matched.length > 0) {
+        const density = keywordCount / (para.split(' ').length || 1);
+        score = (matched.length / keywordLower.length) * (1 + density * 5);
+
+        sections.push({
+          excerpt: paragraphs[i].substring(0, 2000) + (paragraphs[i].length > 2000 ? '\n\n... (truncated for KB storage)' : ''),
+          score,
+          matchedKeywords: matched,
+          density,
+          start: i
+        });
+      }
+    }
+
+    // Sort by score, unique-ish
+    return sections.sort((a, b) => b.score - a.score).slice(0, 6);
   }
 
   private extractTopicsFromQuery(query: string): string[] {
@@ -237,37 +322,37 @@ export class WebScraperService {
       'https://www.mygov.in',
       'https://services.india.gov.in',
       'https://digitalindia.gov.in',
-      'https://startupindia.gov.in',
-      'https://www.makeinindia.com',
-      'https://www.msme.gov.in',
-      'https://www.dpiit.nic.in',
-      'https://www.meti.gov.in',
-      'https://www.mha.gov.in',
-      'https://www.mowr.gov.in',
-      'https://www.mnre.gov.in',
-      'https://www.fpi.gov.in',
-      'https://www.pharmaceuticals.gov.in',
-      'https://www.mahaonline.gov.in',
-      'https://www.maharashtra.gov.in',
-      'https://invest.maharashtra.gov.in',
-      'https://www.delhigovt.nic.in',
-      'https://www.karnataka.gov.in',
-      'https://www.udyamregistration.gov.in',
-      'https://www.gst.gov.in',
-      'https://www.incometax.gov.in',
-      'https://www.epfindia.gov.in',
-      'https://www.esic.gov.in',
-      'https://niti.gov.in',
-      'https://www.sebi.gov.in',
-      'https://www.rbi.org.in',
-      'https://www.irdai.gov.in',
-      'https://www.business.gov.in',
-      'https://www.indianembassy.gov.in',
-      'https://www.dgft.gov.in',
-      'https://www.cbic.gov.in',
-      'https://www.mca.gov.in',
-      'https://www.nclt.gov.in',
-      'https://www.consumerhelpline.gov.in'
+      'startupindia.gov.in',
+      'www.makeinindia.com',
+      'www.msme.gov.in',
+      'www.dpiit.nic.in',
+      'www.meti.gov.in',
+      'www.mha.gov.in',
+      'www.mowr.gov.in',
+      'www.mnre.gov.in',
+      'www.fpi.gov.in',
+      'www.pharmaceuticals.gov.in',
+      'www.mahaonline.gov.in',
+      'www.maharashtra.gov.in',
+      'invest.maharashtra.gov.in',
+      'www.delhigovt.nic.in',
+      'www.karnataka.gov.in',
+      'www.udyamregistration.gov.in',
+      'www.gst.gov.in',
+      'www.incometax.gov.in',
+      'www.epfindia.gov.in',
+      'www.esic.gov.in',
+      'niti.gov.in',
+      'www.sebi.gov.in',
+      'www.rbi.org.in',
+      'www.irdai.gov.in',
+      'www.business.gov.in',
+      'www.indianembassy.gov.in',
+      'www.dgft.gov.in',
+      'www.cbic.gov.in',
+      'www.mca.gov.in',
+      'www.nclt.gov.in',
+      'www.consumerhelpline.gov.in'
     ];
 
     for (const portal of governmentPortals) {
@@ -645,3 +730,4 @@ The AI will provide guidance based on general knowledge of this topic. For offic
     return false;
   }
 }
+

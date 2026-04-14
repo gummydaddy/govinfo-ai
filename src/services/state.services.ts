@@ -512,11 +512,11 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
    */
   addPendingQuery(query: string): void {
     const context = this.userContext();
-    const tokens = this.tokenizeQuery(query); // Will use shared tokenize later
+    const keywords = this.tokenizeQuery(query); // Uses kbService.tokenize()
 
-    // Check for duplicate (same tokens + context)
+    // Check for duplicate (same keywords + context)
     const existing = this.pendingQueries().find(p => 
-      this.tokensMatch(p.tokens, tokens) &&
+      this.keywordsMatch(p.keywords, keywords) &&
       p.context.country === context.country &&
       p.context.state === context.state &&
       p.context.sector === context.sector
@@ -530,7 +530,7 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
     const newQuery: PendingQuery = {
       id: this.generateId(),
       query,
-      tokens,
+      keywords,
       context,
       timestamp: Date.now()
     };
@@ -556,9 +556,9 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
   /**
    * Remove pending queries by tokens match
    */
-  removePendingByTokens(tokens: string[]): void {
+  removePendingByKeywords(keywords: string[]): void {
     this.pendingQueries.update(queries => 
-      queries.filter(q => !this.tokensMatch(q.tokens, tokens))
+      queries.filter(q => !this.keywordsMatch(q.keywords, keywords))
     );
     this.savePendingQueriesToLocalStorage();
   }
@@ -574,10 +574,10 @@ KARNATAKA INDUSTRIAL POLICY 2020-2025
   /**
    * Simple token match (at least 70% overlap)
    */
-  private tokensMatch(t1: string[], t2: string[]): boolean {
-    const set1 = new Set(t1);
-    const intersection = t2.filter(t => set1.has(t)).length;
-    return intersection / t2.length >= 0.7;
+  private keywordsMatch(keywords1: string[], keywords2: string[]): boolean {
+    const set1 = new Set(keywords1);
+    const intersection = keywords2.filter(k => set1.has(k)).length;
+    return intersection / keywords2.length >= 0.7;
   }
 
   /**

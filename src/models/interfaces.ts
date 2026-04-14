@@ -411,7 +411,7 @@ export interface EnhancedAIResponse {
 export interface PendingQuery {
   id: string;
   query: string;
-  tokens: string[];
+  keywords: string[];
   context: UserContext;
   timestamp: number;
 }

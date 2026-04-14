@@ -469,50 +469,31 @@ const extractedData = this.extractKeyInformationFromHtml(content, approvedUrl);
 
     for (const query of pending.slice(0, 10)) { // Limit 10/run
       try {
-        const relatedTopic = this.webScraper.findRelatedTopic(query.query);
-        if (!relatedTopic) {
-          console.log(`[Pending] No topic match for "${query.query.substring(0, 50)}..."`);
+        // Use keywords for targeted scraping
+        const scrapedResults = await this.webScraper.scrapeByKeywords(query.keywords);
+        if (scrapedResults.length === 0) {
+          console.log(`[Pending] No keyword matches for "${query.query.substring(0, 50)}..." (keywords: ${query.keywords.slice(0,3).join(', ')})`);
           continue;
         }
 
-        // Filter enabled URLs matching topic/ministry
-        const matchingUrls = enabledUrls.filter(u => 
-          u.ministry?.toLowerCase().includes(relatedTopic.ministry.toLowerCase()) ||
-          u.category.toLowerCase().includes(relatedTopic.sector.toLowerCase()) ||
-          u.url.toLowerCase().includes(query.tokens.join(' '))
-        );
-
-        if (matchingUrls.length === 0) {
-          console.log(`[Pending] No matching enabled URLs for "${query.query.substring(0, 50)}..."`);
-          continue;
-        }
-
-        // Scrape matching URLs
-        for (const url of matchingUrls.slice(0, 3)) {
-          try {
-            const content = await this.fetchWithCorsProxy(url.url);
-            if (content && content.length > 1000) {
-              // Learn 3 variants
-              const questions = [
-                query.query,
-                `${url.ministry || url.category} ${query.query}`,
-                `government ${query.query}`
-              ];
-
-              let itemsAdded = 0;
-              for (const q of questions) {
-                if (this.knowledgebase.learn(q, content.substring(0, 15000), query.context, 'ai-response')) {
-                  itemsAdded++;
-                }
-              }
-
-              console.log(`[Pending] "${query.query.substring(0, 50)}..." → ${itemsAdded} from ${url.url}`);
-              break; // One good URL enough
-            }
-          } catch (scrapeError) {
-            console.log(`[Pending] Failed ${url.url}: ${scrapeError}`);
+        // Learn from each relevant result using keyword-based questions
+        let itemsAdded = 0;
+        for (const result of scrapedResults.slice(0, 3)) {
+          const keywordQuestion = query.keywords.join(' ') + '?';
+          const contextualQuestion = `${result.ministry || result.domain} ${query.keywords.join(' ')}?`;
+          
+          if (this.knowledgebase.learn(keywordQuestion, result.content, query.context, 'ai-response')) {
+            itemsAdded++;
+          }
+          if (this.knowledgebase.learn(contextualQuestion, result.content, query.context, 'ai-response')) {
+            itemsAdded++;
           }
         }
+
+        console.log(`[Pending] "${query.query.substring(0, 50)}..." → ${itemsAdded} keyword-targeted entries (keywords: ${query.keywords.slice(0,3).join(', ')})`);
+        
+        // Remove after successful processing
+        this.stateService.removePendingQuery(query.id);
 
         // Remove after attempt
         this.stateService.removePendingQuery(query.id);
