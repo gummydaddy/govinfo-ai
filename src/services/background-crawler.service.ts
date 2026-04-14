@@ -22,8 +22,10 @@ export class BackgroundCrawlerService {
   private schedulerInterval: any = null;
   private isRunning = signal(false);
   
-  // Backend server URL - change this to your server URL in production
-  private readonly SERVER_URL = 'http://localhost:3001';
+  // Backend server URL - use environment variable or default to production URL
+  private readonly SERVER_URL = (typeof window !== 'undefined' && (<any>window)['BACKEND_URL']) 
+    ? (<any>window)['BACKEND_URL'] 
+    : 'https://govinfo-ai.onrender.com';
 
   constructor() {
     // Auto-start if enabled in settings

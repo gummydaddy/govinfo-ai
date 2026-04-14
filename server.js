@@ -10,9 +10,24 @@ import { writeFileSync, appendFileSync, existsSync, readFileSync } from 'fs';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Enable CORS for the Angular app - allow all localhost ports for development
+// Enable CORS for the Angular app - allow localhost for development and production domains
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:4200',
+  'https://govinfo-ai.vercel.app',
+  'https://govinfo-ai.onrender.com'
+];
+
 app.use(cors({
-  origin: true,  // Allow all origins in development
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -236,6 +251,15 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
 
+// Handle root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'GovInfo AI Scraping Server', 
+    status: 'running',
+    timestamp: Date.now()
+  });
+});
+
 // API Endpoint: Get server logs
 app.get('/api/logs', (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
@@ -271,11 +295,14 @@ app.post('/api/logs/clear', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const serverUrl = isProduction ? 'https://govinfo-ai.onrender.com' : `http://localhost:${PORT}`;
+  
   console.log(`
-╔════════════════════════════════════════════════════════════╗
+╔══════════════════════════════════════════════════════════════╗
 ║         GovInfo AI Scraping Server Started                ║
-╠════════════════════════════════════════════════════════════╣
-║  Server running on: http://localhost:${PORT}              ║
+╠══════════════════════════════════════════════════════════════╣
+║  Server running on: ${serverUrl}              ║
 ║                                                            ║
 ║  Endpoints:                                               ║
 ║  - GET  /api/scrape?url=<url>     Scrape single URL       ║
@@ -284,8 +311,8 @@ app.listen(PORT, () => {
 ║  - GET  /api/health                Health check          ║
 ║                                                            ║
 ║  Usage from Angular:                                       ║
-║  http://localhost:${PORT}/api/scrape?url=https://...       ║
-╚════════════════════════════════════════════════════════════╝
+║  ${serverUrl}/api/scrape?url=https://...       ║
+╚══════════════════════════════════════════════════════════════╝
   `);
 });
 

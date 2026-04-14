@@ -30,7 +30,7 @@ npm install
 npm start
 ```
 This will start:
-- Backend server on http://localhost:3001 (for web scraping)
+- Backend server on https://govinfo-ai.onrender.com (for web scraping)
 - Frontend on http://localhost:3000
 
 ### Option 2: Run Separately

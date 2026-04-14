@@ -168,11 +168,16 @@
   <!-- Root Angular Component -->
   <app-root></app-root>
   
-  <!-- Loading Screen (optional) -->
-  <noscript>
-    <div style="display: flex; justify-content: center; align-items: center; height: 100vh; color: white;">
-      <p>JavaScript is required to run this application. Please enable JavaScript in your browser.</p>
-    </div>
-  </noscript>
+   <!-- Loading Screen (optional) -->
+   <noscript>
+     <div style="display: flex; justify-content: center; align-items: center; height: 100vh; color: white;">
+       <p>JavaScript is required to run this application. Please enable JavaScript in your browser.</p>
+     </div>
+   </noscript>
+   
+   <!-- Set backend URL for production -->
+   <script>
+     window.BACKEND_URL = 'https://govinfo-ai.onrender.com';
+   </script>
 </body>
 </html>
