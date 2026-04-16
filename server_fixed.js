@@ -50,16 +50,16 @@ let serverLogs = [];
 function log(message, type = 'info') {
   const timestamp = new Date().toISOString();
   const logEntry = { timestamp, message, type };
-
+  
   // Keep last 100 logs in memory
   serverLogs.push(logEntry);
   if (serverLogs.length > 100) {
     serverLogs.shift();
   }
-
+  
   // Also log to console
   console.log(`[${type.toUpperCase()}] ${message}`);
-
+  
   // Write to file
   try {
     const logLine = `${timestamp} [${type.toUpperCase()}] ${message}\n`;
@@ -86,17 +86,17 @@ function extractDomain(url) {
 // Helper: Extract key information from HTML
 function extractKeyInformation(html, url) {
   const $ = cheerio.load(html);
-
+  
   // Get title
   const title = $('title').text() || $('h1').first().text() || '';
-
+  
   // Remove unwanted elements
   $('script, style, nav, header, footer, aside, iframe, noscript, form, button').remove();
-
+  
   // Get main content
   const contentSelectors = ['main', 'article', '.content', '.main-content', '#content', '.container', '.body'];
   let contentText = '';
-
+  
   for (const selector of contentSelectors) {
     const element = $(selector);
     if (element.length > 0) {
@@ -104,17 +104,17 @@ function extractKeyInformation(html, url) {
       break;
     }
   }
-
+  
   if (!contentText) {
     contentText = $('body').text() || '';
   }
-
+  
   // Clean and truncate
   contentText = contentText
     .replace(/\s+/g, ' ')
     .trim()
     .substring(0, CONFIG.MAX_CONTENT_LENGTH);
-
+  
   return {
     title: title.trim(),
     content: contentText,
@@ -126,21 +126,21 @@ function extractKeyInformation(html, url) {
 // API Endpoint: Scrape a single URL
 app.get('/api/scrape', async (req, res) => {
   const { url } = req.query;
-
+  
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
-
-  // Check cache first
+  
+// Check cache first
   const cacheKey = btoa(url).substring(0, 50);
   const cached = crawlCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < 3600000) { // 1 hour cache
     log(`Returning cached result for ${url}`, 'info');
     return res.json(cached.data);
   }
-
+  
   log(`Scraping: ${url}`, 'info');
-
+  
   try {
     const response = await axios.get(url, {
       timeout: CONFIG.REQUEST_TIMEOUT,
@@ -161,14 +161,14 @@ app.get('/api/scrape', async (req, res) => {
       maxRedirects: 10,
       validateStatus: (status) => status < 600 // Accept all status codes to handle them gracefully
     });
-
+    
     // Handle non-200 status codes
     if (response.status >= 400) {
       log(`Received HTTP ${response.status} for ${url}`, 'warn');
       // Still try to extract content if we got something back
       if (response.data && response.data.length > 0) {
         const extractedData = extractKeyInformation(response.data, url);
-
+        
         const result = {
           success: true,
           url: url,
@@ -179,21 +179,21 @@ app.get('/api/scrape', async (req, res) => {
           statusCode: response.status,
           warning: `Received HTTP ${response.status} but extracted content anyway`
         };
-
+        
         // Cache the result
         crawlCache.set(cacheKey, {
           data: result,
           timestamp: Date.now()
         });
-
+        
         return res.json(result);
       }
-
+      
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-
+    
     const extractedData = extractKeyInformation(response.data, url);
-
+    
     const result = {
       success: true,
       url: url,
@@ -202,15 +202,15 @@ app.get('/api/scrape', async (req, res) => {
       domain: extractedData.domain,
       timestamp: Date.now()
     };
-
+    
     // Cache the result
     crawlCache.set(cacheKey, {
       data: result,
       timestamp: Date.now()
     });
-
+    
     res.json(result);
-
+    
   } catch (error) {
     log(`Error scraping ${url}: ${error.message}`, 'error');
     res.status(500).json({
@@ -225,14 +225,14 @@ app.get('/api/scrape', async (req, res) => {
 // API Endpoint: Scrape multiple URLs
 app.post('/api/scrape-batch', async (req, res) => {
   const { urls } = req.body;
-
+  
   if (!urls || !Array.isArray(urls)) {
     return res.status(400).json({ error: 'URLs array is required' });
   }
-
-
+  
+  
   const results = [];
-
+  
   for (const url of urls) {
     try {
       const response = await axios.get(url, {
@@ -242,9 +242,9 @@ app.post('/api/scrape-batch', async (req, res) => {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
         }
       });
-
+      
       const extractedData = extractKeyInformation(response.data, url);
-
+      
       results.push({
         success: true,
         url: url,
@@ -252,7 +252,7 @@ app.post('/api/scrape-batch', async (req, res) => {
         content: extractedData.content,
         domain: extractedData.domain
       });
-
+      
     } catch (error) {
       results.push({
         success: false,
@@ -260,11 +260,11 @@ app.post('/api/scrape-batch', async (req, res) => {
         error: error.message
       });
     }
-
+    
     // Small delay between requests
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
-
+  
   res.json({ results });
 });
 
@@ -284,8 +284,8 @@ app.get('/api/health', (req, res) => {
 
 // Handle root endpoint
 app.get('/', (req, res) => {
-  res.json({
-    message: 'GovInfo AI Scraping Server',
+  res.json({ 
+    message: 'GovInfo AI Scraping Server', 
     status: 'running',
     timestamp: Date.now()
   });
@@ -305,8 +305,8 @@ app.get('/api/logs/file', (req, res) => {
       const content = readFileSync(CONFIG.LOG_FILE, 'utf-8');
       const lines = content.split('\n').filter(l => l.trim());
       const limit = parseInt(req.query.limit) || 100;
-      res.json({
-        success: true,
+      res.json({ 
+        success: true, 
         logs: lines.slice(-limit).join('\n'),
         totalLines: lines.length
       });
@@ -328,7 +328,7 @@ app.post('/api/logs/clear', (req, res) => {
 app.listen(PORT, () => {
   const isProduction = process.env.NODE_ENV === 'production';
   const serverUrl = isProduction ? 'https://govinfo-ai.onrender.com' : `http://localhost:${PORT}`;
-
+  
   console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
 ║         GovInfo AI Scraping Server Started                ║
