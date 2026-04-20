@@ -131,6 +131,28 @@ app.get('/api/scrape', async (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
 
+  // Validate URL has proper protocol
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    log(`Rejected invalid URL (no protocol): ${url}`, 'warn');
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Invalid URL: must start with http:// or https://',
+      url: url 
+    });
+  }
+
+  // Validate URL is parseable
+  try {
+    new URL(url);
+  } catch {
+    log(`Rejected unparseable URL: ${url}`, 'warn');
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Invalid URL format',
+      url: url 
+    });
+  }
+
   // Check cache first
   const cacheKey = btoa(url).substring(0, 50);
   const cached = crawlCache.get(cacheKey);

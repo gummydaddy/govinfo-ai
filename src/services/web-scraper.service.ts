@@ -81,6 +81,11 @@ export class WebScraperService {
   
   private contentCache = new Map<string, { data: ScrapedContent; timestamp: number }>();
   
+  // Backend server URL for CORS-free scraping
+  private readonly SERVER_URL = (typeof window !== 'undefined' && (<any>window)['BACKEND_URL']) 
+    ? (<any>window)['BACKEND_URL'] 
+    : 'https://govinfo-ai.onrender.com';
+  
   readonly stats = signal<ScraperStats>({
     totalScrapes: 0,
     cacheHits: 0,
@@ -152,8 +157,15 @@ export class WebScraperService {
     const results: KeywordScrapedResult[] = [];
 
     for (const url of enabledUrls) {
+      // Validate URL before attempting scrape
+      if (!url.url.startsWith('http://') && !url.url.startsWith('https://')) {
+        console.log(`[WebScraper] Skipping invalid URL (no protocol): ${url.url}`);
+        continue;
+      }
+
       try {
-        const content = await this.scrapeUrl(url.url, url.title);
+        // Use backend server for CORS-free scraping
+        const content = await this.scrapeUrlViaBackend(url.url, url.title);
         if (!content) continue;
 
         // Find keyword matches and extract relevant sections
@@ -278,6 +290,12 @@ export class WebScraperService {
     const results: ScrapedContent[] = [];
     
     for (const urlInfo of searchUrls.slice(0, SCRAPER_CONFIG.MAX_RESULTS_PER_QUERY)) {
+      // Validate URL before attempting scrape
+      if (!urlInfo.url.startsWith('http://') && !urlInfo.url.startsWith('https://')) {
+        console.log(`[WebScraper] Skipping invalid URL (no protocol): ${urlInfo.url}`);
+        continue;
+      }
+
       try {
         const content = await this.scrapeUrl(urlInfo.url, urlInfo.title);
         if (content) {
@@ -695,6 +713,77 @@ The AI will provide guidance based on general knowledge of this topic. For offic
   clearCache(): void {
     this.contentCache.clear();
     console.log('[WebScraper] Cache cleared');
+  }
+
+  /**
+   * Scrape URL via the backend server (bypasses CORS)
+   * Used by keyword scraping and background crawler
+   */
+  private async scrapeUrlViaBackend(url: string, title: string): Promise<ScrapedContent | null> {
+    // Check cache first
+    const cacheKey = this.getCacheKey(url);
+    const cached = this.contentCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < SCRAPER_CONFIG.CACHE_DURATION_MS) {
+      this.stats.update(s => ({ ...s, cacheHits: s.cacheHits + 1 }));
+      return cached.data;
+    }
+
+    try {
+      const scrapeUrl = `${this.SERVER_URL}/api/scrape?url=${encodeURIComponent(url)}`;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+      const response = await fetch(scrapeUrl, {
+        method: 'GET',
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.content) {
+        const result: ScrapedContent = {
+          url,
+          title: data.title || title,
+          content: data.content,
+          timestamp: Date.now(),
+          relevanceScore: 0.6,
+          domain: data.domain || this.extractDomain(url),
+          ministry: undefined,
+          snippet: data.content.substring(0, 200) + '...'
+        };
+
+        // Extract structured info from the content
+        result.structuredInfo = this.extractStructuredInfo(result.content, url);
+
+        // Cache the result
+        this.contentCache.set(cacheKey, {
+          data: result,
+          timestamp: Date.now()
+        });
+
+        this.stats.update(s => ({
+          ...s,
+          totalScrapes: s.totalScrapes + 1,
+          totalContentChars: s.totalContentChars + result.content.length
+        }));
+
+        return result;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error(`[WebScraper] Backend scrape failed for ${url}:`, error);
+      this.stats.update(s => ({ ...s, failedScrapes: s.failedScrapes + 1 }));
+      return null;
+    }
   }
 
   getStats(): ScraperStats {

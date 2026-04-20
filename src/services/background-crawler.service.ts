@@ -237,27 +237,38 @@ export class BackgroundCrawlerService {
     this.stateService.addCrawlHistory(historyEntry);
 
     try {
-      // Fetch the page
+      // Fetch the page via backend server (returns already-extracted text, not HTML)
       const content = await this.fetchWithCorsProxy(approvedUrl.url);
       
       if (!content) {
         throw new Error('Failed to fetch content');
       }
 
-      // Extract key information
-const extractedData = this.extractKeyInformationFromHtml(content, approvedUrl);
+      // Backend server already extracts text content via cheerio
+      // Use content directly - no need to re-parse as HTML
+      const pageTitle = approvedUrl.title || 'Untitled';
+      const pageContent = content;
       
       // Store in knowledgebase with multiple question patterns
       let itemsIndexed = 0;
       
-      // Store main page info
-      const questions = this.generateQuestions(approvedUrl, extractedData.title);
+      // Generate question patterns for this URL's content
+      const questions = this.generateQuestions(approvedUrl, pageTitle);
+      const context = this.stateService.userContext();
       
       for (const question of questions) {
-              // Skip KB learn - official docs only mode
-              console.log('[BackgroundCrawler] Skipped KB learn for', approvedUrl.url);
-        
-        // itemsIndexed remains 0 - no learning from web
+        // Store crawled content in KB as 'crawled' (admin-approved URL source)
+        const learned = this.knowledgebase.learn(
+          question,
+          pageContent.substring(0, 5000) + (pageContent.length > 5000 ? '\n\n[Content truncated]' : '') + `\n\nSource: ${approvedUrl.url}`,
+          context,
+          'ai-response',
+          'crawled'
+        );
+        if (learned) {
+          itemsIndexed++;
+          console.log(`[BackgroundCrawler] KB learned: "${question.substring(0, 60)}..." from ${approvedUrl.url}`);
+        }
       }
 
       // Update history entry as completed
@@ -471,10 +482,13 @@ const extractedData = this.extractKeyInformationFromHtml(content, approvedUrl);
 
     for (const query of pending.slice(0, 10)) { // Limit 10/run
       try {
-        // Use keywords for targeted scraping
+        // Use keywords for targeted scraping via backend server
         const scrapedResults = await this.webScraper.scrapeByKeywords(query.keywords);
         if (scrapedResults.length === 0) {
           console.log(`[Pending] No keyword matches for "${query.query.substring(0, 50)}..." (keywords: ${query.keywords.slice(0,3).join(', ')})`);
+          // Still remove the query to prevent infinite retry
+          this.stateService.removePendingQuery(query.id);
+          processed++;
           continue;
         }
 
@@ -484,25 +498,31 @@ const extractedData = this.extractKeyInformationFromHtml(content, approvedUrl);
           const keywordQuestion = query.keywords.join(' ') + '?';
           const contextualQuestion = `${result.ministry || result.domain} ${query.keywords.join(' ')}?`;
           
-          if (this.knowledgebase.learn(keywordQuestion, result.content, query.context, 'ai-response')) {
+          // Store with 'crawled' kbSource since these come from admin-approved URLs
+          if (this.knowledgebase.learn(keywordQuestion, result.content, query.context, 'ai-response', 'crawled')) {
             itemsAdded++;
           }
-          if (this.knowledgebase.learn(contextualQuestion, result.content, query.context, 'ai-response')) {
+          if (this.knowledgebase.learn(contextualQuestion, result.content, query.context, 'ai-response', 'crawled')) {
+            itemsAdded++;
+          }
+          
+          // Also store the original user query as a KB entry pointing to this content
+          if (this.knowledgebase.learn(query.query, result.content, query.context, 'ai-response', 'crawled')) {
             itemsAdded++;
           }
         }
 
         console.log(`[Pending] "${query.query.substring(0, 50)}..." → ${itemsAdded} keyword-targeted entries (keywords: ${query.keywords.slice(0,3).join(', ')})`);
         
-        // Remove after successful processing
-        this.stateService.removePendingQuery(query.id);
-
-        // Remove after attempt
+        // Remove after processing (fixed: was called twice before)
         this.stateService.removePendingQuery(query.id);
         processed++;
         
       } catch (error) {
-        console.error(`[Pending] Error: ${error}`);
+        console.error(`[Pending] Error processing query: ${error}`);
+        // Remove failed queries to prevent infinite retry loops
+        this.stateService.removePendingQuery(query.id);
+        processed++;
       }
     }
 

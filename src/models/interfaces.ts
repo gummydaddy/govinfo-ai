@@ -252,7 +252,7 @@ export interface KnowledgebaseEntry {
   lastUsed: number;          // Timestamp
   createdAt: number;         // When learned
   source: 'user-chat' | 'ai-response';
-  kbSource: 'official' | 'web' | 'unknown';  // Source type for filtering
+  kbSource: 'official' | 'web' | 'crawled' | 'unknown';  // Source type: official=admin upload, crawled=from admin-approved URLs, web=random web, unknown=legacy
 }
 
 /**

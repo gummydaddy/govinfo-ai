@@ -110,7 +110,7 @@ export class KnowledgebaseService {
    * Search knowledgebase for similar question
    */
   findMatch(question: string, context: UserContext): KnowledgebaseMatch | null {
-    const entries = this.entries().filter(e => e.kbSource === 'official');  // Only official sources
+    const entries = this.entries().filter(e => e.kbSource === 'official' || e.kbSource === 'crawled');  // Official + admin-approved crawled sources
     if (entries.length === 0) {
       this.stats.update(s => ({ ...s, misses: s.misses + 1 }));
       return null;
@@ -163,7 +163,7 @@ export class KnowledgebaseService {
     answer: string, 
     context: UserContext,
     source: 'user-chat' | 'ai-response' = 'ai-response',
-    kbSource: 'official' | 'web' | 'unknown' = 'unknown'
+    kbSource: 'official' | 'web' | 'crawled' | 'unknown' = 'unknown'
   ): boolean {
     // Validation checks
     const cleanQuestion = question.trim();
@@ -179,9 +179,9 @@ export class KnowledgebaseService {
     );
     if (isErrorAnswer) return false;
 
-    // Only learn from official sources
-    if (kbSource !== 'official') {
-      console.log('[KB] Skipped learning non-official source:', kbSource);
+    // Only learn from official and crawled (admin-approved URL) sources
+    if (kbSource !== 'official' && kbSource !== 'crawled') {
+      console.log('[KB] Skipped learning non-approved source:', kbSource);
       return false;
     }
 
@@ -210,7 +210,7 @@ export class KnowledgebaseService {
       lastUsed: Date.now(),
       createdAt: Date.now(),
       source,
-      kbSource: 'unknown'  // Default; AI service will set to 'official' when appropriate
+      kbSource  // Use the provided kbSource value
     };
 
     // Add to entries

@@ -152,8 +152,8 @@ export class AiService {
       }
 
       if (answer.length > 50) {
-        // Learn with the scraped data as answer
-        this.knowledgebase.learn(userMessage, answer, context, 'ai-response');
+        // Learn with the scraped data as answer - use 'crawled' since data comes from admin-approved URLs
+        this.knowledgebase.learn(userMessage, answer, context, 'ai-response', 'crawled');
         console.log(`[Knowledgebase] Stored scraped data from ${result.domain || result.url}`);
       }
     }
