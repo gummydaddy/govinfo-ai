@@ -1,7 +1,8 @@
-// src/services/knowledgebase.service.ts - Lightweight Knowledge Base for Instant Responses
+// src/services/knowledgebase.service.ts - Lightweight Knowledge Base for Instant Responses with Clustering
 
 import { Injectable, inject, signal } from '@angular/core';
 import { KnowledgebaseEntry, KnowledgebaseMatch, UserContext } from '../models/interfaces';
+import { ClusteringService } from './clustering.service';
 
 /**
  * Configuration for knowledgebase behavior
@@ -21,21 +22,23 @@ const KB_CONFIG = {
   providedIn: 'root'
 })
 export class KnowledgebaseService {
-  
-  // In-memory cache
-  private entries = signal<KnowledgebaseEntry[]>([]);
-  
-  // Statistics
-  readonly stats = signal({
-    totalEntries: 0,
-    storageSizeKB: 0,
-    hits: 0,
-    misses: 0
-  });
-
-  constructor() {
-    this.loadFromStorage();
-  }
+   
+   // In-memory cache
+   private entries = signal<KnowledgebaseEntry[]>([]);
+   
+   // Statistics
+   readonly stats = signal({
+     totalEntries: 0,
+     storageSizeKB: 0,
+     hits: 0,
+     misses: 0
+   });
+   
+   constructor(
+     private clusteringService: ClusteringService
+   ) {
+     this.loadFromStorage();
+   }
 
   /**
    * Tokenize a question for fast matching (PUBLIC for reuse)
@@ -106,54 +109,79 @@ export class KnowledgebaseService {
     return total > 0 ? score / total : 0;
   }
 
-  /**
-   * Search knowledgebase for similar question
-   */
-  findMatch(question: string, context: UserContext): KnowledgebaseMatch | null {
-    const entries = this.entries().filter(e => e.kbSource === 'official' || e.kbSource === 'crawled');  // Official + admin-approved crawled sources
-    if (entries.length === 0) {
-      this.stats.update(s => ({ ...s, misses: s.misses + 1 }));
-      return null;
-    }
+   /**
+    * Search knowledgebase for similar question
+    */
+   findMatch(question: string, context: UserContext): KnowledgebaseMatch | null {
+     const entries = this.entries().filter(e => e.kbSource === 'official' || e.kbSource === 'crawled');  // Official + admin-approved crawled sources
+     if (entries.length === 0) {
+       this.stats.update(s => ({ ...s, misses: s.misses + 1 }));
+       return null;
+     }
 
-    const questionTokens = this.tokenize(question);
-    if (questionTokens.length === 0) return null;
+     // Use clustering for larger knowledgebases (>50 entries) for better performance
+     if (entries.length > 50) {
+       // Fit clustering model if not already fitted or if entries count changed significantly
+       if (!this.clusteringService['isFitted'] || 
+           Math.abs(this.clusteringService['entryToCluster'].size - entries.length) > entries.length * 0.3) {
+         this.clusteringService.fit(entries);
+       }
+       
+       // Search using clustering
+       const clusteredMatch = this.clusteringService.searchInClusters(
+         question,
+         entries,
+         context,
+         this
+       );
+       
+       if (clusteredMatch) {
+         // Update usage stats
+         this.updateEntryUsage(clusteredMatch.entry.id);
+         this.stats.update(s => ({ ...s, hits: s.hits + 1 }));
+         return clusteredMatch;
+       }
+     }
 
-    let bestMatch: KnowledgebaseMatch | null = null;
+     // Fall back to original search method
+     const questionTokens = this.tokenize(question);
+     if (questionTokens.length === 0) return null;
 
-    for (const entry of entries) {
-      // Calculate token similarity
-      const tokenSimilarity = this.calculateSimilarity(
-        questionTokens, 
-        entry.questionTokens
-      );
-      
-      // Calculate context similarity
-      const contextSimilarity = this.contextMatch(entry, context);
-      
-      // Combined confidence score
-      const confidence = 
-        (tokenSimilarity * KB_CONFIG.TOKEN_MATCH_WEIGHT) +
-        (contextSimilarity * KB_CONFIG.CONTEXT_WEIGHT);
+     let bestMatch: KnowledgebaseMatch | null = null;
 
-      // Only consider matches above threshold
-      if (confidence >= KB_CONFIG.MIN_CONFIDENCE) {
-        if (!bestMatch || confidence > bestMatch.confidence) {
-          bestMatch = { entry, confidence };
-        }
-      }
-    }
+     for (const entry of entries) {
+       // Calculate token similarity
+       const tokenSimilarity = this.calculateSimilarity(
+         questionTokens, 
+         entry.questionTokens
+       );
+       
+       // Calculate context similarity
+       const contextSimilarity = this.contextMatch(entry, context);
+       
+       // Combined confidence score
+       const confidence = 
+         (tokenSimilarity * KB_CONFIG.TOKEN_MATCH_WEIGHT) +
+         (contextSimilarity * KB_CONFIG.CONTEXT_WEIGHT);
 
-    if (bestMatch) {
-      // Update usage stats
-      this.updateEntryUsage(bestMatch.entry.id);
-      this.stats.update(s => ({ ...s, hits: s.hits + 1 }));
-    } else {
-      this.stats.update(s => ({ ...s, misses: s.misses + 1 }));
-    }
+       // Only consider matches above threshold
+       if (confidence >= KB_CONFIG.MIN_CONFIDENCE) {
+         if (!bestMatch || confidence > bestMatch.confidence) {
+           bestMatch = { entry, confidence };
+         }
+       }
+     }
 
-    return bestMatch;
-  }
+     if (bestMatch) {
+       // Update usage stats
+       this.updateEntryUsage(bestMatch.entry.id);
+       this.stats.update(s => ({ ...s, hits: s.hits + 1 }));
+     } else {
+       this.stats.update(s => ({ ...s, misses: s.misses + 1 }));
+     }
+
+     return bestMatch;
+   }
 
   /**
    * Learn a new Q&A pair from chat
@@ -265,12 +293,20 @@ export class KnowledgebaseService {
     this.updateStats();
   }
 
-  /**
-   * Get all entries (for debugging/admin)
-   */
-  getAllEntries(): KnowledgebaseEntry[] {
-    return this.entries();
-  }
+   /**
+    * Get all entries (for debugging/admin)
+    */
+   getAllEntries(): KnowledgebaseEntry[] {
+     return this.entries();
+   }
+
+   /**
+    * Get entries signal (for internal use)
+    * @internal
+    */
+   getEntriesSignal() {
+     return this.entries;
+   }
 
   /**
    * Remove specific entry
