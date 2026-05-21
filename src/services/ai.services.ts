@@ -88,76 +88,94 @@ export class AiService {
     };
   }
 
-  /**
-   * Learn from AI response if it's valid
-   */
-  private learnFromResponse(userMessage: string, aiResponse: AIResponse): void {
-    if (aiResponse.error) return;
-    
-    // Only learn if official docs were available (no early return triggered)
-    const relevantOfficialDocs = this.stateService.relevantDocs().filter(d => d.officialSource !== false);
-    if (relevantOfficialDocs.length === 0) {
-      console.log('[AI] Skipped learning - no official docs for this query');
-      return;
-    }
-    
-    const context = this.stateService.userContext();
-    const learned = this.knowledgebase.learn(userMessage, aiResponse.text, context, 'ai-response', 'official');
-    
-    if (learned) {
-      console.log('[Knowledgebase] Official entry learned from AI response');
-    }
-  }
+   /**
+    * Learn from AI response if it's valid
+    */
+   private learnFromResponse(userMessage: string, aiResponse: AIResponse): void {
+     if (aiResponse.error) return;
+     
+     // Only learn if official docs were available (no early return triggered)
+     const relevantOfficialDocs = this.stateService.relevantDocs().filter(d => d.officialSource !== false);
+     if (relevantOfficialDocs.length === 0) {
+       console.log('[AI] Skipped learning - no official docs for this query');
+       return;
+     }
+     
+     const context = this.stateService.userContext();
+     const learned = this.knowledgebase.learn(userMessage, aiResponse.text, context, 'ai-response', 'official');
+     
+     if (learned) {
+       console.log('[Knowledgebase] Official entry learned from AI response');
+       
+       // Refit clustering model periodically to maintain accuracy
+       const entries = this.knowledgebase.getAllEntries();
+       if (entries.length > 50 && entries.length % 10 === 0) {
+         // Refit every 10 new entries after 50 to keep clusters up-to-date
+         this.knowledgebase['clusteringService'].fit(entries);
+         console.log('[Knowledgebase] Clustering model refitted with', entries.length, 'entries');
+       }
+     }
+   }
 
-  /**
-   * Store scraped data directly into knowledgebase for future use
-   */
-  private storeScrapedData(userMessage: string, webResults: any[]): void {
-    if (!webResults || webResults.length === 0) return;
+   /**
+    * Store scraped data directly into knowledgebase for future use
+    */
+   private storeScrapedData(userMessage: string, webResults: any[]): void {
+     if (!webResults || webResults.length === 0) return;
 
-    const context = this.stateService.userContext();
-    
-    // Store each scraped result as a separate knowledgebase entry
-    for (const result of webResults.slice(0, 3)) {
-      // Create a structured answer from scraped content
-      let answer = '';
-      
-      if (result.structuredInfo) {
-        const si = result.structuredInfo;
-        if (si.eligibility && si.eligibility.length > 0) {
-          answer += `ELIGIBILITY: ${si.eligibility.join(', ')}\n`;
-        }
-        if (si.documentsRequired && si.documentsRequired.length > 0) {
-          answer += `DOCUMENTS REQUIRED: ${si.documentsRequired.join(', ')}\n`;
-        }
-        if (si.fees) {
-          answer += `FEES: ${si.fees}\n`;
-        }
-        if (si.timeline) {
-          answer += `TIMELINE: ${si.timeline}\n`;
-        }
-        if (si.howToApply) {
-          answer += `HOW TO APPLY: ${si.howToApply}\n`;
-        }
-      }
-      
-      // Add content preview if no structured info
-      if (!answer && result.content) {
-        answer = result.content.substring(0, 800) + (result.content.length > 800 ? '...' : '');
-      }
-      
-      // Add source URL
-      if (result.url) {
-        answer += `\n\nSOURCE: ${result.url}`;
-      }
+     const context = this.stateService.userContext();
+     
+     // Store each scraped result as a separate knowledgebase entry
+     for (const result of webResults.slice(0, 3)) {
+       // Create a structured answer from scraped content
+       let answer = '';
+       
+       if (result.structuredInfo) {
+         const si = result.structuredInfo;
+         if (si.eligibility && si.eligibility.length > 0) {
+           answer += `ELIGIBILITY: ${si.eligibility.join(', ')}\n`;
+         }
+         if (si.documentsRequired && si.documentsRequired.length > 0) {
+           answer += `DOCUMENTS REQUIRED: ${si.documentsRequired.join(', ')}\n`;
+         }
+         if (si.fees) {
+           answer += `FEES: ${si.fees}\n`;
+         }
+         if (si.timeline) {
+           answer += `TIMELINE: ${si.timeline}\n`;
+         }
+         if (si.howToApply) {
+           answer += `HOW TO APPLY: ${si.howToApply}\n`;
+         }
+       }
+       
+       // Add content preview if no structured info
+       if (!answer && result.content) {
+         answer = result.content.substring(0, 800) + (result.content.length > 800 ? '...' : '');
+       }
+       
+       // Add source URL
+       if (result.url) {
+         answer += `\n\nSOURCE: ${result.url}`;
+       }
 
-      if (answer.length > 50) {
-        // Learn with the scraped data as answer - use 'crawled' since data comes from admin-approved URLs
-        this.knowledgebase.learn(userMessage, answer, context, 'ai-response', 'crawled');
-        console.log(`[Knowledgebase] Stored scraped data from ${result.domain || result.url}`);
-      }
-    }
-  }
+       if (answer.length > 50) {
+         // Learn with the scraped data as answer - use 'crawled' since data comes from admin-approved URLs
+         const learned = this.knowledgebase.learn(userMessage, answer, context, 'ai-response', 'crawled');
+         if (learned) {
+           console.log(`[Knowledgebase] Stored scraped data from ${result.domain || result.url}`);
+           
+           // Refit clustering model periodically to maintain accuracy
+           const entries = this.knowledgebase.getAllEntries();
+           if (entries.length > 50 && entries.length % 5 === 0) {
+             // Refit every 5 new entries after 50 for crawled data (more frequent updates)
+             this.knowledgebase['clusteringService'].fit(entries);
+             console.log('[Knowledgebase] Clustering model refitted with', entries.length, 'entries (after crawl)');
+           }
+         }
+       }
+     }
+   }
 
   /**
    * Check if we have recently scraped data for this topic
