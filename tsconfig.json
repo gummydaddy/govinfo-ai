@@ -20,6 +20,15 @@
       }
     },
     "files": ["./index.tsx"],
+    "include": [
+      "src/**/*.ts",
+      "src/**/*.d.ts",
+      "src/types/**/*.d.ts"
+    ],
+    "exclude": [
+      "**/*.spec.ts",
+      "node_modules"
+    ],
     "angularCompilerOptions": {
       "disableTypeScriptVersionCheck": true,
       "strictTemplates": true,

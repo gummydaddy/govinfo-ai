@@ -39,8 +39,8 @@ export class DocumentExtractionService {
   readonly progress = signal(0);
   readonly status = signal<string>('');
 
-  // PDF.js worker - will be initialized lazily
-  private pdfjsWorker: any = null;
+  // Cached pdfjs lib instance
+  private pdfjsLib: any = null;
 
   // Tesseract.js worker - will be initialized lazily
   private tesseractWorker: any = null;
@@ -141,17 +141,31 @@ export class DocumentExtractionService {
   }
 
   /**
+   * Initialize PDF.js with proper worker (uses pre-copied asset for Angular compatibility)
+   */
+  private async initializePdfJs(): Promise<any> {
+    if (this.pdfjsLib) {
+      return this.pdfjsLib;
+    }
+
+    const pdfjsLib = await import('pdfjs-dist');
+    
+    // Point to the worker file copied via angular.json assets config.
+    // Use dynamic base to support root + sub-path deployments (baseURI or origin + /).
+    // This avoids MIME type / 404 issues from dynamic import.meta.url paths in esbuild/Angular builds.
+    const base = (typeof document !== 'undefined' && document.baseURI) || (typeof window !== 'undefined' ? window.location.origin + '/' : '/');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('assets/pdf.worker.min.mjs', base).toString();
+
+    this.pdfjsLib = pdfjsLib;
+    return pdfjsLib;
+  }
+
+  /**
    * Extract text from PDF using PDF.js
    */
   private async extractFromPDF(file: File): Promise<ExtractionResult> {
     try {
-      // Dynamically import pdfjs-dist
-      const pdfjsLib = await import('pdfjs-dist');
-      
-      // Set worker source - use the bundled worker from the package
-      // This ensures version compatibility between API and worker
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 
-        new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+      const pdfjsLib = await this.initializePdfJs();
 
       // Read file as ArrayBuffer
       const arrayBuffer = await this.readFileAsArrayBuffer(file);
@@ -159,10 +173,7 @@ export class DocumentExtractionService {
       // Load PDF document
       this.progress.set(10);
       const pdf = await pdfjsLib.getDocument({ 
-        data: arrayBuffer,
-        useWorkerFetch: false,
-        isEvalSupported: false,
-        useSystemFonts: true
+        data: arrayBuffer
       }).promise;
 
       const pageCount = pdf.numPages;
@@ -215,12 +226,16 @@ export class DocumentExtractionService {
   }
 
   /**
-   * Extract text from DOCX using mammoth.js
+   * Extract text from DOCX using mammoth.js (browser bundle for compatibility)
    */
   private async extractFromDOCX(file: File): Promise<ExtractionResult> {
+    const docFileType = this.getFileType(file) === 'doc' ? 'doc' : 'docx';
+
     try {
-      // Dynamically import mammoth
-      const mammoth = await import('mammoth');
+      // Use the browser-bundled version of mammoth to avoid Node polyfill issues (Buffer, etc.)
+      // and CJS/ESM interop problems with plain 'mammoth' dynamic import in Angular/esbuild.
+      const mammothModule = await import('mammoth/mammoth.browser');
+      const mammoth = mammothModule.default || mammothModule;
 
       // Read file as ArrayBuffer
       const arrayBuffer = await this.readFileAsArrayBuffer(file);
@@ -235,23 +250,23 @@ export class DocumentExtractionService {
           success: false,
           text: '',
           error: 'No text content found in the Word document',
-          metadata: { fileType: 'docx', fileName: file.name }
+          metadata: { fileType: docFileType, fileName: file.name }
         };
       }
 
       return {
         success: true,
         text: cleanedText,
-        metadata: { fileType: 'docx', fileName: file.name }
+        metadata: { fileType: docFileType, fileName: file.name }
       };
 
     } catch (error: any) {
-      console.error('DOCX extraction error:', error);
+      console.error('Document extraction error:', error);
       return {
         success: false,
         text: '',
-        error: `DOCX extraction failed: ${error.message}`,
-        metadata: { fileType: 'docx', fileName: file.name }
+        error: `Document extraction failed: ${error.message}`,
+        metadata: { fileType: docFileType, fileName: file.name }
       };
     }
   }

@@ -18,7 +18,19 @@
               },
               "browser": "index.tsx",
               "tsConfig": "tsconfig.json",
-              "assets": [],
+              "assets": [
+                "src/assets",
+                {
+                  "glob": "pdf.worker.min.mjs",
+                  "input": "node_modules/pdfjs-dist/build",
+                  "output": "/assets"
+                },
+                {
+                  "glob": "pdf.worker.min.mjs.map",
+                  "input": "node_modules/pdfjs-dist/build",
+                  "output": "/assets"
+                }
+              ],
               "styles": [],
               "scripts": [],
               "allowedCommonJsDependencies": [
