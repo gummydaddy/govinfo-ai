@@ -40,206 +40,11 @@ import { BackgroundCrawlerService } from '../services/background-crawler.service
           <!-- LEFT COLUMN: Configuration & Upload -->
           <div class="space-y-6 sm:space-y-8">
             
-            <!-- API Key Configuration - Multi-Provider -->
-            <div class="border border-[#D32F2F] p-4 sm:p-6 bg-black">
-              <h2 class="text-lg sm:text-xl font-bold mb-4 text-[#D32F2F]">1. AI Provider Configuration</h2>
-              <p class="text-xs text-gray-500 mb-4">Configure one or more AI providers. The system will automatically use the first available provider.</p>
-  
-              <!-- Gemini API Key -->
-              <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
-                <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-20 sm:w-24">🔷 Gemini</span>
-                  <span class="text-xs text-gray-600">(Free tier available)</span>
-                </label>
-                <div class="flex flex-col sm:flex-row gap-2">
-                  <input 
-                    type="password" 
-                    [(ngModel)]="apiKeys.gemini"
-                    placeholder="Enter Google Gemini API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
-                  >
-                  <div class="flex gap-2">
-                    <button 
-                      (click)="saveProviderKey('gemini')"
-                      class="bg-[#D32F2F] text-white px-4 sm:px-6 py-3 font-bold hover:bg-red-700 transition-colors text-sm min-h-[48px]"
-                    >
-                      SAVE
-                    </button>
-                    <button 
-                      (click)="clearProviderKey('gemini')"
-                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
-                      title="Clear this API key"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-                <p class="text-xs text-gray-600">
-                  🔑 Get key: <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-[#D32F2F] underline">Google AI Studio</a>
-                </p>
-              </div>
-
-              <!-- OpenRouter API Key -->
-              <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
-                <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-20 sm:w-24">🔶 OpenRouter</span>
-                  <span class="text-xs text-gray-600">(200+ models, $5 min)</span>
-                </label>
-                <div class="flex flex-col sm:flex-row gap-2">
-                  <input 
-                    type="password" 
-                    [(ngModel)]="apiKeys.openrouter"
-                    placeholder="Enter OpenRouter API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
-                  >
-                  <div class="flex gap-2">
-                    <button 
-                      (click)="saveProviderKey('openrouter')"
-                      class="bg-gray-700 text-white px-4 sm:px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm min-h-[48px]"
-                    >
-                      SAVE
-                    </button>
-                    <button 
-                      (click)="clearProviderKey('openrouter')"
-                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
-                      title="Clear this API key"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-                <p class="text-xs text-gray-600">
-                  🔑 Get key: <a href="https://openrouter.ai/keys" target="_blank" class="text-[#D32F2F] underline">OpenRouter Keys</a>
-                </p>
-              </div>
-
-              <!-- OpenAI API Key -->
-              <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
-                <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-20 sm:w-24">🟢 OpenAI</span>
-                  <span class="text-xs text-gray-600">(GPT-4o, $5-20 recommended)</span>
-                </label>
-                <div class="flex flex-col sm:flex-row gap-2">
-                  <input 
-                    type="password" 
-                    [(ngModel)]="apiKeys.openai"
-                    placeholder="Enter OpenAI API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
-                  >
-                  <div class="flex gap-2">
-                    <button 
-                      (click)="saveProviderKey('openai')"
-                      class="bg-gray-700 text-white px-4 sm:px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm min-h-[48px]"
-                    >
-                      SAVE
-                    </button>
-                    <button 
-                      (click)="clearProviderKey('openai')"
-                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
-                      title="Clear this API key"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-                <p class="text-xs text-gray-600">
-                  🔑 Get key: <a href="https://platform.openai.com/api-keys" target="_blank" class="text-[#D32F2F] underline">OpenAI Platform</a>
-                </p>
-              </div>
-
-              <!-- Anthropic API Key -->
-              <div class="space-y-4 mb-6 pb-6 border-b border-gray-800">
-                <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-20 sm:w-24">🟠 Anthropic</span>
-                  <span class="text-xs text-gray-600">(Claude 3.5, $5 min)</span>
-                </label>
-                <div class="flex flex-col sm:flex-row gap-2">
-                  <input 
-                    type="password" 
-                    [(ngModel)]="apiKeys.anthropic"
-                    placeholder="Enter Anthropic API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
-                  >
-                  <div class="flex gap-2">
-                    <button 
-                      (click)="saveProviderKey('anthropic')"
-                      class="bg-gray-700 text-white px-4 sm:px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm min-h-[48px]"
-                    >
-                      SAVE
-                    </button>
-                    <button 
-                      (click)="clearProviderKey('anthropic')"
-                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
-                      title="Clear this API key"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-                <p class="text-xs text-gray-600">
-                  🔑 Get key: <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-[#D32F2F] underline">Anthropic Console</a>
-                </p>
-              </div>
-
-              <!-- Groq API Key -->
-              <div class="space-y-4">
-                <label class="block text-sm text-gray-400 flex items-center gap-2">
-                  <span class="w-20 sm:w-24">⚡ Groq</span>
-                  <span class="text-xs text-gray-600">(Fast Llama, Free tier)</span>
-                </label>
-                <div class="flex flex-col sm:flex-row gap-2">
-                  <input 
-                    type="password" 
-                    [(ngModel)]="apiKeys.groq"
-                    placeholder="Enter Groq API Key"
-                    class="flex-1 bg-[#111] border border-gray-700 p-3 text-white focus:border-[#D32F2F] focus:outline-none text-sm min-h-[48px]"
-                  >
-                  <div class="flex gap-2">
-                    <button 
-                      (click)="saveProviderKey('groq')"
-                      class="bg-gray-700 text-white px-4 sm:px-6 py-3 font-bold hover:bg-gray-600 transition-colors text-sm min-h-[48px]"
-                    >
-                      SAVE
-                    </button>
-                    <button 
-                      (click)="clearProviderKey('groq')"
-                      class="bg-gray-800 text-white px-4 py-3 font-bold hover:bg-red-900 transition-colors text-sm border border-gray-700 min-h-[48px]"
-                      title="Clear this API key"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-                <p class="text-xs text-gray-600">
-                  🔑 Get key: <a href="https://console.groq.com/keys" target="_blank" class="text-[#D32F2F] underline">Groq Console</a>
-                </p>
-              </div>
-
-              <!-- Status Indicator -->
-              <div class="mt-6 pt-6 border-t border-gray-800">
-                <div class="text-xs text-gray-500 mb-2">CONFIGURED PROVIDERS:</div>
-                <div class="flex gap-2 flex-wrap">
-                  @if (apiKeys.gemini) {
-                    <span class="bg-blue-900/30 text-blue-400 px-2 py-1 text-xs rounded">Gemini ✓</span>
-                  }
-                  @if (apiKeys.openrouter) {
-                    <span class="bg-orange-900/30 text-orange-400 px-2 py-1 text-xs rounded">OpenRouter ✓</span>
-                  }
-                  @if (apiKeys.openai) {
-                    <span class="bg-green-900/30 text-green-400 px-2 py-1 text-xs rounded">OpenAI ✓</span>
-                  }
-                  @if (apiKeys.anthropic) {
-                    <span class="bg-purple-900/30 text-purple-400 px-2 py-1 text-xs rounded">Anthropic ✓</span>
-                  }
-                  @if (apiKeys.groq) {
-                    <span class="bg-yellow-900/30 text-yellow-400 px-2 py-1 text-xs rounded">Groq ✓</span>
-                  }
-                  @if (!apiKeys.gemini && !apiKeys.openrouter && !apiKeys.openai && !apiKeys.anthropic && !apiKeys.groq) {
-                    <span class="text-gray-600 text-xs">No providers configured yet</span>
-                  }
-                </div>
-              </div>
-            </div>
+             <!-- API Key Configuration - Multi-Provider -->
+             <div class="border border-[#D32F2F] p-4 sm:p-6 bg-black">
+               <h2 class="text-lg sm:text-xl font-bold mb-4 text-[#D32F2F]">1. AI Provider Configuration</h2>
+               <p class="text-xs text-gray-500 mb-4">API keys are configured via server-side environment variables and encrypted platform secrets.</p>
+             </div>
 
             <!-- Web Scraping Configuration -->
             <div class="border border-[#D32F2F] p-4 sm:p-6 bg-black mt-6 sm:mt-8">
@@ -1101,14 +906,6 @@ export class AdminComponent {
     crawlPriority: 'medium' as 'high' | 'medium' | 'low'
   };
   
-  // Multi-provider API Keys
-  apiKeys = {
-    gemini: '',
-    openrouter: '',
-    openai: '',
-    anthropic: '',
-    groq: ''
-  };
 
   mapsKeyInput = '';
   searchQuery = '';
@@ -1130,14 +927,7 @@ export class AdminComponent {
     tags: []
   };
 
-constructor() {
-    // Load all provider keys
-    this.apiKeys.gemini = this.stateService.getApiKey('gemini');
-    this.apiKeys.openrouter = this.stateService.getApiKey('openrouter');
-    this.apiKeys.openai = this.stateService.getApiKey('openai');
-    this.apiKeys.anthropic = this.stateService.getApiKey('anthropic');
-    this.apiKeys.groq = this.stateService.getApiKey('groq');
-
+  constructor() {
     this.mapsKeyInput = this.stateService.googleMapsApiKey();
     
     // Load scraping settings
@@ -1192,26 +982,7 @@ constructor() {
     this.selectedDocument.set(null);
   }
 
-  saveProviderKey(provider: 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq') {
-    const key = this.apiKeys[provider];
-    
-    if (!key || !key.trim()) {
-      this.stateService.addNotification({
-        type: 'warning',
-        message: `Please enter a ${provider} API key`,
-        duration: 2000
-      });
-      return;
-    }
-    
-    this.stateService.setProviderApiKey(provider, key.trim());
-    
-    this.stateService.addNotification({
-      type: 'success',
-      message: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API Key saved successfully`,
-      duration: 3000
-    });
-  }
+
 
   saveMapsKey() {
     if (!this.mapsKeyInput.trim()) {
@@ -1533,20 +1304,7 @@ You can still paste the document content manually below.
   
   // End Web Scraping Configuration Methods
   
-  clearProviderKey(provider: 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq') {
-    if (!confirm(`Are you sure you want to remove the ${provider} API key?`)) {
-      return;
-    }
-    
-    this.apiKeys[provider] = '';
-    this.stateService.clearProviderApiKey(provider);
-    
-    this.stateService.addNotification({
-      type: 'info',
-      message: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API Key removed`,
-      duration: 3000
-    });
-  }
+  // End Web Scraping Configuration Methods
 
   // New admin form data
   newAdmin = {

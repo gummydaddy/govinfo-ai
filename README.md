@@ -106,3 +106,38 @@ govinfo-ai/
 
 MIT
 
+
+
+
+Changes made:
+
+Backend (server.js)
+
+Added /api/ai/chat proxy endpoint that receives requests from the Angular frontend
+Added AI SDK imports and provider functions (callGemini, callOpenAI, callOpenRouter, callAnthropic, callGroq) that read keys exclusively from process.env
+Added helpers: getEnvKey, getFirstConfiguredProvider, buildSystemPrompt, parseFollowUpActions
+The frontend never touches the API keys
+Frontend (src/services/state.services.ts)
+
+Removed apiKey and apiKeys signals
+Removed setApiKey, setProviderApiKey, clearProviderApiKey, getApiKey, getAllApiKeys
+Removed API key loading from localStorage
+Frontend (src/services/ai.services.ts)
+
+Added axios import and new callAI method that sends chat requests to the backend
+Replaced all direct provider SDK calls (sendMessageGemini, sendMessageOpenRouter, etc.) with callAI wrappers
+Updated sendMessage, sendWithEnhancedContext, and generateDPR to route through the backend
+Frontend (src/components/admin.component.ts)
+
+Removed all API key input fields, save/clear buttons, and status indicators for providers
+Removed apiKeys property, saveProviderKey, and clearProviderKey
+Config
+
+Added .env.example with placeholders for GEMINI_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY
+Added .env file (git-ignored)
+Updated package.json server script to node --env-file .env server.js so local .env is loaded automatically
+To complete setup:
+
+Copy .env.example to .env and fill in your actual API keys
+Deploy with the same env vars in Vercel/Render/your platform secrets — the backend will read process.env.* automatically
+Run npm start or npm run server + npm run dev

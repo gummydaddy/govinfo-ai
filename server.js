@@ -5,6 +5,10 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { OpenAI } from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
 import { writeFileSync, appendFileSync, existsSync, readFileSync } from 'fs';
 
 const app = express();
@@ -346,6 +350,286 @@ app.post('/api/logs/clear', (req, res) => {
   res.json({ success: true, message: 'Logs cleared from memory' });
 });
 
+function getEnvKey(provider) {
+  switch (provider) {
+    case 'gemini': return process.env.GEMINI_API_KEY;
+    case 'openrouter': return process.env.OPENROUTER_API_KEY;
+    case 'openai': return process.env.OPENAI_API_KEY;
+    case 'anthropic': return process.env.ANTHROPIC_API_KEY;
+    case 'groq': return process.env.GROQ_API_KEY;
+    default: return null;
+  }
+}
+
+function getFirstConfiguredProvider() {
+  const providers = ['gemini', 'openrouter', 'openai', 'anthropic', 'groq'];
+  for (const p of providers) {
+    if (getEnvKey(p)) return p;
+  }
+  return null;
+}
+
+function buildSystemPrompt(userContext, officialDocs, relevantDocs) {
+  const contextString = (officialDocs || []).map(d => `
+--- DOCUMENT START ---
+Title: ${d.title}
+Ministry/Department: ${d.ministry}
+Document Type: ${d.type}
+Content: ${d.content}
+--- DOCUMENT END ---
+  `).join('\n');
+
+  return `You are GovInfo AI, a specialized compliance intelligence agent for ${userContext?.country || 'India'} (${userContext?.state || 'National level'}).
+User Sector: ${userContext?.sector || ''}
+User Intent: ${userContext?.intent || ''}
+
+🎯 YOUR MISSION:
+Provide comprehensive, accurate, and actionable information about government schemes, licenses, permits, policies, and compliance requirements.
+
+📋 RESPONSE FORMAT - Be Detailed and Informative:
+Your response MUST include these sections:
+1. **OVERVIEW** (2-3 sentences): Brief summary of the topic
+2. **ELIGIBILITY** (bullet points): Who can apply, qualification criteria
+3. **REQUIRED DOCUMENTS** (numbered list): All documents needed
+4. **FEES & CHARGES** (if applicable): Cost involved, payment methods
+5. **TIMELINE** (if applicable): Processing time, validity period
+6. **HOW TO APPLY** (step-by-step): Online/offline process
+7. **IMPORTANT LINKS** (if available): Official portals, forms
+8. **SOURCE REFERENCES**: Cite the government source
+
+⚠️ CRITICAL RULES:
+1. ONLY use information from the provided source documents
+2. If information is not in sources, clearly state "Based on the provided documents, this information is not available"
+3. Do NOT hallucinate or make up information
+4. Always provide actionable steps - tell users exactly what to do
+5. Include specific government portal URLs when available
+6. Use professional but friendly tone
+
+📝 OUTPUT STRUCTURE:
+After your detailed response, append "---FOLLOW_UP---" followed by 3 relevant follow-up questions separated by "|".
+
+Example:
+OVERVIEW: The Udyam Registration is a government initiative for MSME businesses...
+ELIGIBILITY: 
+- Manufacturing and service enterprises
+- Investment under ₹50 crore
+- Turnover under ₹250 crore
+
+REQUIRED DOCUMENTS:
+1. Aadhaar card
+2. Business address proof
+3. Category certificate (if SC/ST)
+
+FEES: Free of cost
+
+TIMELINE: Instant registration
+
+HOW TO APPLY:
+1. Visit udyamregistration.gov.in
+2. Click "For New Registration"
+3. Enter Aadhaar and verify
+4. Fill business details
+5. Get Udyam Certificate
+
+SOURCE REFERENCES: Ministry of MSME, Udyam Registration Portal
+
+---FOLLOW_UP---
+How to download Udyam certificate? | What are MSME benefits? | Is re-registration required?
+
+PROVIDED SOURCES:
+${contextString}`;
+}
+
+function parseFollowUpActions(text) {
+  const splitParts = text.split('---FOLLOW_UP---');
+  if (splitParts.length > 1) {
+    const cleanText = splitParts[0].trim();
+    const actionsStr = splitParts[1].trim();
+    const actions = actionsStr.split('|').map(s => s.trim()).filter(s => s.length > 0);
+    return { text: cleanText, actions };
+  }
+  return { text, actions: [] };
+}
+
+app.post('/api/ai/chat', async (req, res) => {
+  const { provider, userMessage, attachments, useSearch, officialDocs, relevantDocs, userContext } = req.body;
+
+  if (!userMessage) {
+    return res.status(400).json({ error: 'userMessage is required' });
+  }
+
+  try {
+    const configuredProvider = (provider && getEnvKey(provider)) ? provider : getFirstConfiguredProvider();
+    if (!configuredProvider) {
+      return res.json({ text: 'ERROR: No AI provider configured on server.', error: 'No API key' });
+    }
+
+    const systemPrompt = buildSystemPrompt(userContext, officialDocs, relevantDocs);
+    let response;
+
+    switch (configuredProvider) {
+      case 'gemini':
+        response = await callGemini(systemPrompt, userMessage, attachments);
+        break;
+      case 'openrouter':
+        response = await callOpenRouter(systemPrompt, userMessage, attachments);
+        break;
+      case 'openai':
+        response = await callOpenAI(systemPrompt, userMessage, attachments);
+        break;
+      case 'anthropic':
+        response = await callAnthropic(systemPrompt, userMessage, attachments);
+        break;
+      case 'groq':
+        response = await callGroq(systemPrompt, userMessage, attachments);
+        break;
+      default:
+        return res.json({ text: 'Unknown provider', error: 'Invalid provider' });
+    }
+
+    res.json(response);
+  } catch (error) {
+    console.error('AI Error:', error);
+    res.status(500).json({ text: `AI Error: ${error.message}`, error: error.message });
+  }
+});
+
+async function callGemini(systemPrompt, userMessage, attachments) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { text: 'Gemini API key not configured', error: 'No key' };
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+
+  const parts = [];
+  if (userMessage) parts.push({ text: userMessage });
+
+  if (attachments && attachments.length > 0) {
+    for (const att of attachments) {
+      if (att.mimeType && att.data) {
+        const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
+        parts.push({
+          inlineData: {
+            mimeType: att.mimeType,
+            data: base64Data
+          }
+        });
+      }
+    }
+  }
+
+  const result = await model.generateContent({
+    contents: [{ role: 'user', parts }],
+    systemInstruction: systemPrompt
+  });
+
+  const rawText = result.response.text();
+  const parsed = parseFollowUpActions(rawText);
+
+  return { text: parsed.text, suggestedActions: parsed.actions, sources: [] };
+}
+
+async function callOpenRouter(systemPrompt, userMessage, attachments) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return { text: 'OpenRouter API key not configured', error: 'No key' };
+
+  const client = new OpenAI({
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey: apiKey
+  });
+
+  const messages = [{ role: 'system', content: systemPrompt }];
+
+  if (attachments && attachments.length > 0) {
+    const content = [];
+    if (userMessage) content.push({ type: 'text', text: userMessage });
+    for (const att of attachments) {
+      if (att.mimeType && att.mimeType.startsWith('image/') && att.data) {
+        content.push({ type: 'image_url', image_url: { url: att.data } });
+      }
+    }
+    messages.push({ role: 'user', content });
+  } else {
+    messages.push({ role: 'user', content: userMessage });
+  }
+
+  const response = await client.chat.completions.create({
+    model: 'openai/gpt-4o',
+    messages,
+    temperature: 0.1
+  });
+
+  const rawText = response.choices[0]?.message?.content || 'No response';
+  const parsed = parseFollowUpActions(rawText);
+
+  return { text: parsed.text, suggestedActions: parsed.actions };
+}
+
+async function callOpenAI(systemPrompt, userMessage, attachments) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return { text: 'OpenAI API key not configured', error: 'No key' };
+
+  const client = new OpenAI({ apiKey });
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userMessage }
+  ];
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4o',
+    messages,
+    temperature: 0.1
+  });
+
+  const rawText = response.choices[0]?.message?.content || 'No response';
+  const parsed = parseFollowUpActions(rawText);
+
+  return { text: parsed.text, suggestedActions: parsed.actions };
+}
+
+async function callAnthropic(systemPrompt, userMessage, attachments) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { text: 'Anthropic API key not configured', error: 'No key' };
+
+  const client = new Anthropic({ apiKey });
+
+  const response = await client.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 2000,
+    system: systemPrompt,
+    messages: [
+      { role: 'user', content: userMessage }
+    ]
+  });
+
+  const rawText = response.content[0].type === 'text' ? response.content[0].text : 'No response';
+  const parsed = parseFollowUpActions(rawText);
+
+  return { text: parsed.text, suggestedActions: parsed.actions };
+}
+
+async function callGroq(systemPrompt, userMessage, attachments) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return { text: 'Groq API key not configured', error: 'No key' };
+
+  const client = new Groq({ apiKey });
+
+  const response = await client.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage }
+    ],
+    temperature: 0.1
+  });
+
+  const rawText = response.choices[0]?.message?.content || 'No response';
+  const parsed = parseFollowUpActions(rawText);
+
+  return { text: parsed.text, suggestedActions: parsed.actions };
+}
+
 // Start server
 app.listen(PORT, () => {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -360,8 +644,9 @@ app.listen(PORT, () => {
 ║  Endpoints:                                               ║
 ║  - GET  /api/scrape?url=<url>     Scrape single URL       ║
 ║  - POST /api/scrape-batch          Scrape multiple URLs    ║
-║  - GET  /api/status                Server status          ║
+║  - POST /api/ai/chat              AI Chat (server-side)   ║
 ║  - GET  /api/health                Health check          ║
+║  - GET  /api/status                Server status          ║
 ║                                                            ║
 ║  Usage from Angular:                                       ║
 ║  ${serverUrl}/api/scrape?url=https://...       ║

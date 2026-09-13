@@ -30,24 +30,8 @@ export class StateService {
   readonly currentUser = signal<User | null>(null);
   
   // ========== CONFIGURATION STATE ==========
-  readonly apiKey = signal<string>(''); // Legacy: Gemini key
   readonly googleMapsApiKey = signal<string>('');
   readonly currentLanguage = signal<string>('en');
-  
-  // Multi-Provider API Keys
-  private apiKeys = signal<{
-    gemini: string;
-    openrouter: string;
-    openai: string;
-    anthropic: string;
-    groq: string;
-  }>({
-    gemini: '',
-    openrouter: '',
-    openai: '',
-    anthropic: '',
-    groq: ''
-  });
   
   // ========== USER CONTEXT STATE ==========
   readonly userContext = signal<UserContext>({
@@ -778,44 +762,14 @@ constructor() {
   }
   
   // --- Configuration ---
-  setApiKey(key: string) {
-    this.apiKey.set(key);
-    localStorage.setItem('govinfo_api_key', key);
-  }
-  
   setGoogleMapsApiKey(key: string) {
     this.googleMapsApiKey.set(key);
     localStorage.setItem('govinfo_maps_key', key);
   }
-  
-  setLanguage(lang: string) {
-    this.currentLanguage.set(lang);
-    localStorage.setItem('govinfo_language', lang);
-  }
-  
-  // --- Multi-Provider API Keys ---
-  setProviderApiKey(provider: 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq', key: string) {
-    this.apiKeys.update(keys => ({ ...keys, [provider]: key }));
-    localStorage.setItem(`govinfo_${provider}_key`, key);
-    
-    // Backward compatibility: if gemini key is set, also update legacy apiKey
-    if (provider === 'gemini') {
-      this.apiKey.set(key);
-      localStorage.setItem('govinfo_api_key', key);
-    }
-  }
-  
-  getApiKey(provider: 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq'): string {
-    return this.apiKeys()[provider];
-  }
-  
-  getAllApiKeys() {
-    return this.apiKeys();
-  }
-  
-  clearProviderApiKey(provider: 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq') {
-    this.apiKeys.update(keys => ({ ...keys, [provider]: '' }));
-    localStorage.removeItem(`govinfo_${provider}_key`);
+
+  setLanguage(code: string) {
+    this.currentLanguage.set(code);
+    localStorage.setItem('govinfo_language', code);
   }
   
   // --- User Context ---
@@ -933,27 +887,6 @@ constructor() {
   // ========== PRIVATE METHODS ==========
   
   private loadFromLocalStorage() {
-    // Load API Key (Legacy - Gemini)
-    const apiKey = localStorage.getItem('govinfo_api_key');
-    if (apiKey) {
-      this.apiKey.set(apiKey);
-    }
-    
-    // Load Multi-Provider API Keys
-    const providers: ('gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq')[] = 
-      ['gemini', 'openrouter', 'openai', 'anthropic', 'groq'];
-    
-    const loadedKeys: any = {};
-    providers.forEach(provider => {
-      const key = localStorage.getItem(`govinfo_${provider}_key`);
-      if (key) {
-        loadedKeys[provider] = key;
-      }
-    });
-    
-    if (Object.keys(loadedKeys).length > 0) {
-      this.apiKeys.update(keys => ({ ...keys, ...loadedKeys }));
-    }
     
     // Maps Key
     const mapsKey = localStorage.getItem('govinfo_maps_key');
