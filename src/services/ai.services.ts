@@ -5,16 +5,97 @@ import { StateService } from './state.services.js';
 import { KnowledgebaseService } from './knowledgebase.service.js';
 import { Attachment, AIResponse } from '../models/interfaces';
 
-/**
- * Supported AI Providers
- */
-export type AIProvider = 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq';
+export type AIProvider = 'gemini' | 'openrouter' | 'openai' | 'anthropic' | 'groq' | 'kira';
 
-/**
- * Multi-Provider AI Service
- * Automatically detects which API keys are available and uses them
- * Includes knowledgebase for instant responses to common questions
- */
+const FALLBACK_QUESTIONS = [
+  { text: "What is the main challenge you are facing right now?", category: "general" },
+  { text: "How does this situation make you feel?", category: "emotional" },
+  { text: "What specific outcome are you hoping for?", category: "goal" },
+  { text: "Have you tried any solutions so far? If so, what?", category: "action" },
+  { text: "What support do you feel you need most?", category: "needs" }
+];
+
+const cleanJson = (text: string): string => {
+  if (!text) return "";
+  return text.replace(/```json/g, '').replace(/```/g, '').trim();
+};
+
+const ensureArray = <T>(data: any): T[] => {
+  if (Array.isArray(data)) return data;
+  if (!data) return [];
+  if (typeof data === 'object') {
+    for (const key in data) {
+      if (Array.isArray(data[key])) return data[key];
+    }
+  }
+  return [data];
+};
+
+const SCHEMAS = {
+  questions: {
+    type: "ARRAY",
+    items: {
+      type: "OBJECT",
+      properties: { text: { type: "STRING" }, category: { type: "STRING" } },
+      required: ["text", "category"]
+    }
+  },
+  rapport: {
+    type: "OBJECT",
+    properties: { text: { type: "STRING" }, category: { type: "STRING" } },
+    required: ["text", "category"]
+  },
+  metaInsight: {
+    type: "OBJECT",
+    properties: {
+      pattern: { type: "STRING" },
+      recommendation: { type: "STRING" }
+    },
+    required: ["pattern", "recommendation"]
+  },
+  analysis: {
+    type: "OBJECT",
+    properties: {
+      archetype: { type: "STRING" },
+      archetypeDescription: { type: "STRING" },
+      riskAssessment: {
+        type: "OBJECT",
+        properties: {
+          level: { type: "STRING" },
+          flags: { type: "ARRAY", items: { type: "STRING" } },
+          isConcern: { type: "BOOLEAN" },
+          detailedAnalysis: { type: "STRING" }
+        },
+        required: ["level", "flags", "isConcern", "detailedAnalysis"]
+      },
+      traits: {
+        type: "OBJECT",
+        properties: {
+          empathy: { type: "NUMBER" }, logic: { type: "NUMBER" }, integrity: { type: "NUMBER" },
+          ambition: { type: "NUMBER" }, resilience: { type: "NUMBER" }, social_calibration: { type: "NUMBER" },
+        },
+        required: ["empathy", "logic", "integrity", "ambition", "resilience", "social_calibration"]
+      },
+      careerPathSuggestions: {
+        type: "ARRAY",
+        items: {
+          type: "OBJECT",
+          properties: { title: { type: "STRING" }, description: { type: "STRING" }, strategicFit: { type: "STRING" } },
+          required: ["title", "description", "strategicFit"]
+        }
+      },
+      counselingAdvice: { type: "STRING" },
+      professionalDiagnosis: { type: "STRING" },
+      suggestedActionPlan: { type: "ARRAY", items: { type: "STRING" } },
+      primaryPrecautions: { type: "ARRAY", items: { type: "STRING" } },
+      suggestedMedicines: { type: "ARRAY", items: { type: "STRING" } },
+      rootCauses: { type: "ARRAY", items: { type: "STRING" } },
+      interpersonalStrategy: { type: "STRING" }
+    },
+    required: ["archetype", "archetypeDescription", "riskAssessment", "traits", "careerPathSuggestions", "counselingAdvice"]
+  }
+};
+
 @Injectable({
   providedIn: 'root'
 })
@@ -22,25 +103,251 @@ export class AiService {
   private stateService = inject(StateService);
   private knowledgebase = inject(KnowledgebaseService);
 
-  /**
-   * Get available providers based on configured API keys
-   */
-  getAvailableProviders(): AIProvider[] {
-    const providers: AIProvider[] = [];
-    const keys = this.stateService.getAllApiKeys();
-
-    if (keys.gemini) providers.push('gemini');
-    if (keys.openrouter) providers.push('openrouter');
-    if (keys.openai) providers.push('openai');
-    if (keys.anthropic) providers.push('anthropic');
-    if (keys.groq) providers.push('groq');
-
-    return providers;
+  // --- Provider Configuration ---
+  private getKeys() {
+    const env = (import.meta as any).env || {};
+    const processEnv = (window as any).process?.env || {};
+    return {
+      gemini: env.VITE_GEMINI_API_KEY || processEnv.GEMINI_API_KEY || '',
+      openai: env.VITE_OPENAI_API_KEY || processEnv.OPENAI_API_KEY || '',
+      openrouter: env.VITE_OPENROUTER_API_KEY || processEnv.OPENROUTER_API_KEY || '',
+      anthropic: env.VITE_ANTHROPIC_API_KEY || processEnv.ANTHROPIC_API_KEY || '',
+      groq: env.VITE_GROQ_API_KEY || processEnv.GROQ_API_KEY || '',
+      kira: env.VITE_KIRA_API_KEY || processEnv.KIRA_API_KEY || '',
+      kiraModel: env.VITE_KIRA_MODEL || processEnv.KIRA_MODEL || 'kira-mini-1.0',
+      generic: env.VITE_API_KEY || processEnv.API_KEY || ''
+    };
   }
 
-  /**
-   * Get the primary provider (first available)
-   */
+  private detectProviderFromKey(key: string): AIProvider {
+    if (key.startsWith('sk-or-')) return 'openrouter';
+    if (key.startsWith('sk-ant-')) return 'anthropic';
+    if (key.startsWith('gsk_')) return 'groq';
+    if (key.startsWith('sk-')) return 'openai';
+    if (key.startsWith('kira_')) return 'kira';
+    return 'gemini';
+  }
+
+  getActiveConfig(): { apiKey: string; provider: AIProvider } {
+    const keys = this.getKeys();
+    if (keys.gemini) return { apiKey: keys.gemini, provider: 'gemini' };
+    if (keys.openrouter) return { apiKey: keys.openrouter, provider: 'openrouter' };
+    if (keys.openai) return { apiKey: keys.openai, provider: 'openai' };
+    if (keys.anthropic) return { apiKey: keys.anthropic, provider: 'anthropic' };
+    if (keys.groq) return { apiKey: keys.groq, provider: 'groq' };
+    if (keys.kira) return { apiKey: keys.kira, provider: 'kira' };
+    const genericKey = keys.generic.trim();
+    if (genericKey) {
+      return { apiKey: genericKey, provider: this.detectProviderFromKey(genericKey) };
+    }
+    throw new Error("No API Key configured. Please set VITE_API_KEY or specific provider keys.");
+  }
+
+  async generateContent<T>(
+    prompt: string,
+    schema: any,
+    systemInstruction: string,
+    retryCount = 0
+  ): Promise<T> {
+    const { apiKey, provider } = this.getActiveConfig();
+    const jsonStructure = JSON.stringify(schema, null, 2);
+    const systemPrompt = `${systemInstruction}\n\nIMPORTANT: You must output ONLY valid JSON.\nTarget JSON Schema:\n${jsonStructure}`;
+
+    try {
+      let result: T;
+      switch (provider) {
+        case 'gemini':
+          result = await this.generateGemini(apiKey, prompt, schema, systemInstruction);
+          break;
+        case 'openrouter':
+          result = await this.generateOpenCompatible(apiKey, 'https://openrouter.ai/api/v1', 'google/gemini-flash-1.5', prompt, systemPrompt);
+          break;
+        case 'openai':
+          result = await this.generateOpenCompatible(apiKey, 'https://api.openai.com/v1', 'gpt-4o', prompt, systemPrompt, true);
+          break;
+        case 'groq':
+          result = await this.generateOpenCompatible(apiKey, 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile', prompt, systemPrompt, true);
+          break;
+        case 'anthropic':
+          result = await this.generateAnthropic(apiKey, prompt, systemPrompt);
+          break;
+        case 'kira':
+          result = await this.generateKira(apiKey, prompt, schema, systemPrompt);
+          break;
+        default:
+          throw new Error(`Provider ${provider} not supported`);
+      }
+      return result;
+    } catch (e: any) {
+      console.warn(`${provider} Generation Error (Attempt ${retryCount}):`, e);
+      if (retryCount < 2) {
+        await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
+        return this.generateContent(prompt, schema, systemInstruction, retryCount + 1);
+      }
+      throw new Error(`AI Service Failed after retries: ${e.message}`);
+    }
+  }
+
+  private async generateGemini<T>(apiKey: string, prompt: string, schema: any, systemInstruction: string): Promise<T> {
+    const model = 'gemini-3-flash-preview';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: schema
+      }
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `Gemini Error: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    try {
+      return JSON.parse(cleanJson(text));
+    } catch (e) {
+      throw new Error("Invalid JSON response from Gemini");
+    }
+  }
+
+  private async generateOpenCompatible<T>(apiKey: string, baseUrl: string, model: string, prompt: string, systemPrompt: string, supportsJsonMode = false): Promise<T> {
+    const body: any = {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1
+    };
+    if (supportsJsonMode) body.response_format = { type: "json_object" };
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    };
+    if (baseUrl.includes('openrouter')) {
+      headers['HTTP-Referer'] = typeof window !== 'undefined' ? window.location.origin : 'https://govinfo-ai.app';
+      headers['X-Title'] = 'GovInfo AI';
+    }
+
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      if (err.error?.message?.includes("No endpoints") || res.status === 404 || res.status === 502) {
+        throw new Error("MODEL_NOT_FOUND");
+      }
+      throw new Error(err.error?.message || `${model} API Error: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content;
+    try {
+      return JSON.parse(cleanJson(text));
+    } catch (e) {
+      throw new Error(`Invalid JSON response from ${model}`);
+    }
+  }
+
+  private async generateAnthropic<T>(apiKey: string, prompt: string, systemPrompt: string): Promise<T> {
+    const url = 'https://api.anthropic.com/v1/messages';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'dangerously-allow-browser': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `Anthropic Error: ${res.statusText}`);
+    }
+    const data = await res.json();
+    const text = data.content[0]?.text;
+    try {
+      return JSON.parse(cleanJson(text));
+    } catch (e) {
+      throw new Error("Invalid JSON response from Anthropic");
+    }
+  }
+
+  private async generateKira<T>(apiKey: string, prompt: string, schema: any, systemPrompt: string): Promise<T> {
+    let model = this.getKeys().kiraModel;
+    if (model.startsWith('kira_')) {
+      console.warn('Kira model env var not set correctly, using default: kira-mini-1.0');
+      model = 'kira-mini-1.0';
+    }
+    const baseUrl = 'https://kiraai.vn/api/v1';
+
+    const body = {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1,
+      response_format: { type: "json_object" }
+    };
+
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `Kira Error: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content;
+    try {
+      return JSON.parse(cleanJson(text));
+    } catch (e) {
+      throw new Error("Invalid JSON response from Kira");
+    }
+  }
+
+  // =====================================================
+  // EXISTING SYSTEM INTEGRATION
+  // =====================================================
+
+  getAvailableProviders(): AIProvider[] {
+    try {
+      const { provider } = this.getActiveConfig();
+      return [provider];
+    } catch {
+      return [];
+    }
+  }
+
   getPrimaryProvider(): AIProvider | null {
     const available = this.getAvailableProviders();
     return available.length > 0 ? available[0] : null;
@@ -70,7 +377,6 @@ export class AiService {
    * Queue unanswered query for backend processing
    */
   private queueUnansweredQuery(userMessage: string): AIResponse {
-    // Tokenize and queue
     const tokens = this.knowledgebase.tokenize(userMessage);
     this.stateService.addPendingQuery(userMessage);
     
@@ -88,99 +394,84 @@ export class AiService {
     };
   }
 
-   /**
-    * Learn from AI response if it's valid
-    */
-   private learnFromResponse(userMessage: string, aiResponse: AIResponse): void {
-     if (aiResponse.error) return;
-     
-     // Only learn if official docs were available (no early return triggered)
-     const relevantOfficialDocs = this.stateService.relevantDocs().filter(d => d.officialSource !== false);
-     if (relevantOfficialDocs.length === 0) {
-       console.log('[AI] Skipped learning - no official docs for this query');
-       return;
-     }
-     
-     const context = this.stateService.userContext();
-     const learned = this.knowledgebase.learn(userMessage, aiResponse.text, context, 'ai-response', 'official');
-     
-     if (learned) {
-       console.log('[Knowledgebase] Official entry learned from AI response');
-       
-       // Refit clustering model periodically to maintain accuracy
-       const entries = this.knowledgebase.getAllEntries();
-       if (entries.length > 50 && entries.length % 10 === 0) {
-         // Refit every 10 new entries after 50 to keep clusters up-to-date
-         this.knowledgebase['clusteringService'].fit(entries);
-         console.log('[Knowledgebase] Clustering model refitted with', entries.length, 'entries');
-       }
-     }
-   }
-
-   /**
-    * Store scraped data directly into knowledgebase for future use
-    */
-   private storeScrapedData(userMessage: string, webResults: any[]): void {
-     if (!webResults || webResults.length === 0) return;
-
-     const context = this.stateService.userContext();
-     
-     // Store each scraped result as a separate knowledgebase entry
-     for (const result of webResults.slice(0, 3)) {
-       // Create a structured answer from scraped content
-       let answer = '';
-       
-       if (result.structuredInfo) {
-         const si = result.structuredInfo;
-         if (si.eligibility && si.eligibility.length > 0) {
-           answer += `ELIGIBILITY: ${si.eligibility.join(', ')}\n`;
-         }
-         if (si.documentsRequired && si.documentsRequired.length > 0) {
-           answer += `DOCUMENTS REQUIRED: ${si.documentsRequired.join(', ')}\n`;
-         }
-         if (si.fees) {
-           answer += `FEES: ${si.fees}\n`;
-         }
-         if (si.timeline) {
-           answer += `TIMELINE: ${si.timeline}\n`;
-         }
-         if (si.howToApply) {
-           answer += `HOW TO APPLY: ${si.howToApply}\n`;
-         }
-       }
-       
-       // Add content preview if no structured info
-       if (!answer && result.content) {
-         answer = result.content.substring(0, 800) + (result.content.length > 800 ? '...' : '');
-       }
-       
-       // Add source URL
-       if (result.url) {
-         answer += `\n\nSOURCE: ${result.url}`;
-       }
-
-       if (answer.length > 50) {
-         // Learn with the scraped data as answer - use 'crawled' since data comes from admin-approved URLs
-         const learned = this.knowledgebase.learn(userMessage, answer, context, 'ai-response', 'crawled');
-         if (learned) {
-           console.log(`[Knowledgebase] Stored scraped data from ${result.domain || result.url}`);
-           
-           // Refit clustering model periodically to maintain accuracy
-           const entries = this.knowledgebase.getAllEntries();
-           if (entries.length > 50 && entries.length % 5 === 0) {
-             // Refit every 5 new entries after 50 for crawled data (more frequent updates)
-             this.knowledgebase['clusteringService'].fit(entries);
-             console.log('[Knowledgebase] Clustering model refitted with', entries.length, 'entries (after crawl)');
-           }
-         }
-       }
-     }
-   }
+  /**
+   * Learn from AI response if it's valid
+   */
+  private learnFromResponse(userMessage: string, aiResponse: AIResponse): void {
+    if (aiResponse.error) return;
+    
+    const relevantOfficialDocs = this.stateService.relevantDocs().filter(d => d.officialSource !== false);
+    if (relevantOfficialDocs.length === 0) {
+      console.log('[AI] Skipped learning - no official docs for this query');
+      return;
+    }
+    
+    const context = this.stateService.userContext();
+    const learned = this.knowledgebase.learn(userMessage, aiResponse.text, context, 'ai-response', 'official');
+    
+    if (learned) {
+      console.log('[Knowledgebase] Official entry learned from AI response');
+      
+      const entries = this.knowledgebase.getAllEntries();
+      if (entries.length > 50 && entries.length % 10 === 0) {
+        this.knowledgebase['clusteringService'].fit(entries);
+        console.log('[Knowledgebase] Clustering model refitted with', entries.length, 'entries');
+      }
+    }
+  }
 
   /**
-   * Check if we have recently scraped data for this topic
+   * Store scraped data directly into knowledgebase for future use
    */
+  private storeScrapedData(userMessage: string, webResults: any[]): void {
+    if (!webResults || webResults.length === 0) return;
 
+    const context = this.stateService.userContext();
+    
+    for (const result of webResults.slice(0, 3)) {
+      let answer = '';
+      
+      if (result.structuredInfo) {
+        const si = result.structuredInfo;
+        if (si.eligibility && si.eligibility.length > 0) {
+          answer += `ELIGIBILITY: ${si.eligibility.join(', ')}\n`;
+        }
+        if (si.documentsRequired && si.documentsRequired.length > 0) {
+          answer += `DOCUMENTS REQUIRED: ${si.documentsRequired.join(', ')}\n`;
+        }
+        if (si.fees) {
+          answer += `FEES: ${si.fees}\n`;
+        }
+        if (si.timeline) {
+          answer += `TIMELINE: ${si.timeline}\n`;
+        }
+        if (si.howToApply) {
+          answer += `HOW TO APPLY: ${si.howToApply}\n`;
+        }
+      }
+      
+      if (!answer && result.content) {
+        answer = result.content.substring(0, 800) + (result.content.length > 800 ? '...' : '');
+      }
+      
+      if (result.url) {
+        answer += `\n\nSOURCE: ${result.url}`;
+      }
+
+      if (answer.length > 50) {
+        const learned = this.knowledgebase.learn(userMessage, answer, context, 'ai-response', 'crawled');
+        if (learned) {
+          console.log(`[Knowledgebase] Stored scraped data from ${result.domain || result.url}`);
+          
+          const entries = this.knowledgebase.getAllEntries();
+          if (entries.length > 50 && entries.length % 5 === 0) {
+            this.knowledgebase['clusteringService'].fit(entries);
+            console.log('[Knowledgebase] Clustering model refitted with', entries.length, 'entries (after crawl)');
+          }
+        }
+      }
+    }
+  }
 
   /**
    * Send message using the best available provider with hybrid knowledgebase + web search
@@ -194,8 +485,6 @@ export class AiService {
   ): Promise<AIResponse> {
     const startTime = Date.now();
 
-    // Step 1: Check knowledgebase first (no attachments)
-    // Always check KB first (no attachments)
     if (!skipKnowledgebase && attachments.length === 0) {
       const cachedResponse = this.checkKnowledgebase(userMessage);
       if (cachedResponse) {
@@ -204,16 +493,13 @@ export class AiService {
       }
     }
     
-    // KB miss - queue silently + continue to AI
-    
-    // CRITICAL: Check for official documents FIRST
     const officialDocs = this.stateService.getOfficialDocuments();
     const relevantOfficialDocs = this.stateService.relevantDocs().filter(d => d.officialSource !== false);
     
     if (officialDocs.length === 0 && relevantOfficialDocs.length === 0 && attachments.length === 0) {
       console.log('[AI] No official documents available - early return');
       return {
-        text: "❌ **No official document provided**\n\nPlease use the **Admin Panel** to upload official government documents via data ingestion. The AI can only answer questions based on verified sources uploaded by administrators.\n\n**Next steps:**\n• Go to Admin → Data Ingestion → Upload Policy/Scheme documents\n• Ensure documents match your jurisdiction ({{this.stateService.userContext().country}} / {{this.stateService.userContext().state}})\n• Then ask your question again",
+        text: "❌ **No official document provided**\n\nPlease use the **Admin Panel** to upload official government documents via data ingestion. The AI can only answer questions based on verified sources uploaded by administrators.\n\n**Next steps:**\n• Go to Admin → Data Ingestion → Upload Policy/Scheme documents\n• Ensure documents match your jurisdiction\n• Then ask your question again",
         suggestedActions: ['Go to Admin Panel', 'Upload Official Document'],
         error: 'no_official_docs'
       };
@@ -222,46 +508,186 @@ export class AiService {
     this.stateService.addPendingQuery(userMessage);
     console.log('[AI] KB miss, docs available, calling AI');
 
-    // Step 2: Direct AI call (attachments or KB skipped)
-    const provider = preferredProvider || this.getPrimaryProvider();
+    try {
+      const systemPrompt = this.buildSystemPrompt();
+      const responseText = await this.generateChatResponse(userMessage, systemPrompt);
+      
+      const response: AIResponse = {
+        text: responseText,
+        suggestedActions: [],
+        sources: []
+      };
 
-    if (!provider) {
+      if (!response.error && attachments.length === 0) {
+        this.learnFromResponse(userMessage, response);
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error('[AI] Generation failed:', error);
       return {
-        text: "ERROR: No AI provider configured. Please go to Admin Panel and add at least one API key (Gemini, OpenRouter, OpenAI, Anthropic, or Groq).",
-        error: 'No API key'
+        text: `AI Error: ${error.message}`,
+        error: error.message
       };
     }
+  }
 
-    let response: AIResponse;
-    switch (provider) {
-      case 'gemini':
-        response = await this.sendMessageGemini(userMessage, attachments, useSearch);
-        break;
-      case 'openrouter':
-        response = await this.sendMessageOpenRouter(userMessage, attachments);
-        break;
-      case 'openai':
-        response = await this.sendMessageOpenAI(userMessage, attachments);
-        break;
-      case 'anthropic':
-        response = await this.sendMessageAnthropic(userMessage, attachments);
-        break;
-      case 'groq':
-        response = await this.sendMessageGroq(userMessage, attachments);
-        break;
-      default:
-        response = { text: "Unknown provider", error: 'Invalid provider' };
+  private async generateChatResponse(prompt: string, systemPrompt: string, retryCount = 0): Promise<string> {
+    const { apiKey, provider } = this.getActiveConfig();
+
+    try {
+      switch (provider) {
+        case 'gemini':
+          return await this.generateGeminiChat(apiKey, prompt, systemPrompt);
+        case 'openrouter':
+          return await this.generateOpenCompatibleChat(apiKey, 'https://openrouter.ai/api/v1', 'google/gemini-flash-1.5', prompt, systemPrompt);
+        case 'openai':
+          return await this.generateOpenCompatibleChat(apiKey, 'https://api.openai.com/v1', 'gpt-4o', prompt, systemPrompt);
+        case 'groq':
+          return await this.generateOpenCompatibleChat(apiKey, 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile', prompt, systemPrompt);
+        case 'anthropic':
+          return await this.generateAnthropicChat(apiKey, prompt, systemPrompt);
+        case 'kira':
+          return await this.generateKiraChat(apiKey, prompt, systemPrompt);
+        default:
+          throw new Error(`Provider ${provider} not supported`);
+      }
+    } catch (e: any) {
+      console.warn(`${provider} Chat Error (Attempt ${retryCount}):`, e);
+      if (retryCount < 2) {
+        await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
+        return this.generateChatResponse(prompt, systemPrompt, retryCount + 1);
+      }
+      throw new Error(`AI Chat Failed after retries: ${e.message}`);
+    }
+  }
+
+  private async generateGeminiChat(apiKey: string, prompt: string, systemPrompt: string): Promise<string> {
+    const model = 'gemini-3-flash-preview';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      generationConfig: {
+        temperature: 0.1
+      }
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `Gemini Error: ${res.statusText}`);
     }
 
-    if (!response.error && attachments.length === 0) {
-      this.learnFromResponse(userMessage, response);
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  }
+
+  private async generateOpenCompatibleChat(apiKey: string, baseUrl: string, model: string, prompt: string, systemPrompt: string): Promise<string> {
+    const body: any = {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1
+    };
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    };
+    if (baseUrl.includes('openrouter')) {
+      headers['HTTP-Referer'] = typeof window !== 'undefined' ? window.location.origin : 'https://govinfo-ai.app';
+      headers['X-Title'] = 'GovInfo AI';
     }
 
-    return response;
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      if (err.error?.message?.includes("No endpoints") || res.status === 404 || res.status === 502) {
+        throw new Error("MODEL_NOT_FOUND");
+      }
+      throw new Error(err.error?.message || `${model} API Error: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+
+  private async generateAnthropicChat(apiKey: string, prompt: string, systemPrompt: string): Promise<string> {
+    const url = 'https://api.anthropic.com/v1/messages';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'dangerously-allow-browser': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `Anthropic Error: ${res.statusText}`);
+    }
+    const data = await res.json();
+    return data.content[0]?.text || '';
+  }
+
+  private async generateKiraChat(apiKey: string, prompt: string, systemPrompt: string): Promise<string> {
+    let model = this.getKeys().kiraModel;
+    if (model.startsWith('kira_')) {
+      console.warn('Kira model env var not set correctly, using default: kira-mini-1.0');
+      model = 'kira-mini-1.0';
+    }
+    const baseUrl = 'https://kiraai.vn/api/v1';
+
+    const body = {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1
+    };
+
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `Kira Error: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || '';
   }
 
   /**
-   * Send message with enhanced context from web scraping - ENHANCED
+   * Send message with enhanced context from web scraping
    */
   private async sendWithEnhancedContext(
     userMessage: string,
@@ -276,7 +702,6 @@ export class AiService {
       webContext = `\n\n=== ADDITIONAL WEB INFORMATION FROM OFFICIAL SOURCES ===\n`;
       
       for (const result of webResults.slice(0, 4)) {
-        // Include structured info if available
         let structuredDetails = '';
         if (result.structuredInfo) {
           const si = result.structuredInfo;
@@ -325,51 +750,36 @@ Please enhance this answer with the additional web information below. Make it mo
 
     const enhancedPrompt = `${userMessage}${additionalContext}${webContext}`;
 
-    const provider = preferredProvider || this.getPrimaryProvider();
+    try {
+      const systemPrompt = this.buildSystemPrompt();
+      const responseText = await this.generateChatResponse(enhancedPrompt, systemPrompt);
+      
+      const response: AIResponse = {
+        text: responseText,
+        suggestedActions: []
+      };
 
-    if (!provider) {
+      if (response && !response.error && webResults) {
+        response.sources = webResults.map(r => ({
+          web: {
+            uri: r.url,
+            title: r.title
+          }
+        }));
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error('[AI] Enhanced context generation failed:', error);
       return {
-        text: "ERROR: No AI provider configured.",
-        error: 'No API key'
+        text: `AI Error: ${error.message}`,
+        error: error.message
       };
     }
-
-    let response: AIResponse;
-    
-    switch (provider) {
-      case 'gemini':
-        response = await this.sendMessageGemini(enhancedPrompt, attachments, true);
-        break;
-      case 'openrouter':
-        response = await this.sendMessageOpenRouter(enhancedPrompt, attachments);
-        break;
-      case 'openai':
-        response = await this.sendMessageOpenAI(enhancedPrompt, attachments);
-        break;
-      case 'anthropic':
-        response = await this.sendMessageAnthropic(enhancedPrompt, attachments);
-        break;
-      case 'groq':
-        response = await this.sendMessageGroq(enhancedPrompt, attachments);
-        break;
-      default:
-        response = { text: "Unknown provider", error: 'Invalid provider' };
-    }
-
-    if (response && !response.error && webResults) {
-      response.sources = webResults.map(r => ({
-        web: {
-          uri: r.url,
-          title: r.title
-        }
-      }));
-    }
-
-    return response;
   }
 
   /**
-   * Build system prompt with RAG context - ENHANCED for more descriptive answers
+   * Build system prompt with RAG context
    */
   private buildSystemPrompt(): string {
     const context = this.stateService.userContext();
@@ -460,220 +870,7 @@ ${contextString}`;
   }
 
   // =====================================================
-  // PROVIDER 1: Google Gemini
-  // =====================================================
-  private async sendMessageGemini(
-    userMessage: string,
-    attachments: Attachment[],
-    useSearch: boolean
-  ): Promise<AIResponse> {
-    const apiKey = this.stateService.getApiKey('gemini');
-    if (!apiKey) return { text: "Gemini API key not configured", error: 'No key' };
-
-    try {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(apiKey);
-
-      const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
-
-      const parts: any[] = [];
-      if (userMessage) parts.push({ text: userMessage });
-
-      attachments.forEach(att => {
-        const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
-        parts.push({
-          inlineData: {
-            mimeType: att.mimeType,
-            data: base64Data
-          }
-        });
-      });
-
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts }],
-        systemInstruction: this.buildSystemPrompt()
-      });
-
-      const response = await result.response;
-      const rawText = response.text();
-      const { text, actions } = this.parseFollowUpActions(rawText);
-
-      return {
-        text,
-        suggestedActions: actions,
-        sources: []
-      };
-    } catch (error: any) {
-      console.error('Gemini Error:', error);
-      return { text: `Gemini Error: ${error.message}`, error: error.message };
-    }
-  }
-
-  // =====================================================
-  // PROVIDER 2: OpenRouter
-  // =====================================================
-  private async sendMessageOpenRouter(
-    userMessage: string,
-    attachments: Attachment[]
-  ): Promise<AIResponse> {
-    const apiKey = this.stateService.getApiKey('openrouter');
-    if (!apiKey) return { text: "OpenRouter API key not configured", error: 'No key' };
-
-    try {
-      const { default: OpenAI } = await import('openai');
-      const client = new OpenAI({
-        baseURL: 'https://openrouter.ai/api/v1',
-        apiKey: apiKey,
-        dangerouslyAllowBrowser: true
-      });
-
-      const messages: any[] = [
-        { role: 'system', content: this.buildSystemPrompt() }
-      ];
-
-      if (attachments.length > 0) {
-        const content: any[] = [];
-        if (userMessage) content.push({ type: 'text', text: userMessage });
-
-        attachments.forEach(att => {
-          if (att.mimeType.startsWith('image/')) {
-            content.push({ type: 'image_url', image_url: { url: att.data } });
-          }
-        });
-
-        messages.push({ role: 'user', content });
-      } else {
-        messages.push({ role: 'user', content: userMessage });
-      }
-
-      const response = await client.chat.completions.create({
-        model: 'openai/gpt-4o',
-        messages,
-        temperature: 0.1
-      });
-
-      const rawText = response.choices[0]?.message?.content || "No response";
-      const { text, actions } = this.parseFollowUpActions(rawText);
-
-      return { text, suggestedActions: actions };
-    } catch (error: any) {
-      console.error('OpenRouter Error:', error);
-      return { text: `OpenRouter Error: ${error.message}`, error: error.message };
-    }
-  }
-
-  // =====================================================
-  // PROVIDER 3: OpenAI Direct
-  // =====================================================
-  private async sendMessageOpenAI(
-    userMessage: string,
-    attachments: Attachment[]
-  ): Promise<AIResponse> {
-    const apiKey = this.stateService.getApiKey('openai');
-    if (!apiKey) return { text: "OpenAI API key not configured", error: 'No key' };
-
-    try {
-      const { default: OpenAI } = await import('openai');
-      const client = new OpenAI({
-        apiKey: apiKey,
-        dangerouslyAllowBrowser: true
-      });
-
-      const messages: any[] = [
-        { role: 'system', content: this.buildSystemPrompt() },
-        { role: 'user', content: userMessage }
-      ];
-
-      const response = await client.chat.completions.create({
-        model: 'gpt-4o',
-        messages,
-        temperature: 0.1
-      });
-
-      const rawText = response.choices[0]?.message?.content || "No response";
-      const { text, actions } = this.parseFollowUpActions(rawText);
-
-      return { text, suggestedActions: actions };
-    } catch (error: any) {
-      console.error('OpenAI Error:', error);
-      return { text: `OpenAI Error: ${error.message}`, error: error.message };
-    }
-  }
-
-  // =====================================================
-  // PROVIDER 4: Anthropic Claude
-  // =====================================================
-  private async sendMessageAnthropic(
-    userMessage: string,
-    attachments: Attachment[]
-  ): Promise<AIResponse> {
-    const apiKey = this.stateService.getApiKey('anthropic');
-    if (!apiKey) return { text: "Anthropic API key not configured", error: 'No key' };
-
-    try {
-      const { default: Anthropic } = await import('@anthropic-ai/sdk');
-      const client = new Anthropic({
-        apiKey: apiKey,
-        dangerouslyAllowBrowser: true
-      });
-
-      const response = await client.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 2000,
-        system: this.buildSystemPrompt(),
-        messages: [
-          { role: 'user', content: userMessage }
-        ]
-      });
-
-      const rawText = response.content[0].type === 'text' ? response.content[0].text : "No response";
-      const { text, actions } = this.parseFollowUpActions(rawText);
-
-      return { text, suggestedActions: actions };
-    } catch (error: any) {
-      console.error('Anthropic Error:', error);
-      return { text: `Anthropic Error: ${error.message}`, error: error.message };
-    }
-  }
-
-  // =====================================================
-  // PROVIDER 5: Groq
-  // =====================================================
-  private async sendMessageGroq(
-    userMessage: string,
-    attachments: Attachment[]
-  ): Promise<AIResponse> {
-    const apiKey = this.stateService.getApiKey('groq');
-    if (!apiKey) return { text: "Groq API key not configured", error: 'No key' };
-
-    try {
-      const { default: Groq } = await import('groq-sdk');
-      const client = new Groq({
-        apiKey: apiKey,
-        dangerouslyAllowBrowser: true
-      });
-
-      const response = await client.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: this.buildSystemPrompt() },
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.1
-      });
-
-      const rawText = response.choices[0]?.message?.content || "No response";
-      const { text, actions } = this.parseFollowUpActions(rawText);
-
-      return { text, suggestedActions: actions };
-    } catch (error: any) {
-      console.error('Groq Error:', error);
-      return { text: `Groq Error: ${error.message}`, error: error.message };
-    }
-  }
-
-  // =====================================================
-  // DPR Generation
+  // DPR GENERATION
   // =====================================================
   async generateDPR(input: {
     landDetails: string;
@@ -681,11 +878,6 @@ ${contextString}`;
     circleRate?: string;
     capacity?: string;
   }): Promise<AIResponse> {
-    const provider = this.getPrimaryProvider();
-    if (!provider) {
-      return { text: "No AI provider configured", error: 'No key' };
-    }
-
     const dprPrompt = `Generate a comprehensive DPR for:
 Land: ${input.landDetails}
 Circle Rate: ${input.circleRate || 'TBD'}
@@ -697,7 +889,7 @@ Include: Executive Summary, Site Analysis, Technical Specs, Financial Projection
       name: 'cad-map.jpg',
       mimeType: 'image/jpeg',
       data: input.cadMap
-    }] : [], false, provider, true);
+    }] : [], false, 'gemini', true);
   }
 
   /**
