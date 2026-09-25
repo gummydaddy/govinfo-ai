@@ -535,20 +535,25 @@ export class AiService {
   private async generateChatResponse(prompt: string, systemPrompt: string, retryCount = 0): Promise<string> {
     const { apiKey, provider } = this.getActiveConfig();
 
+    const MAX_PROMPT_CHARS = 12000;
+    const truncatedPrompt = prompt.length > MAX_PROMPT_CHARS
+      ? prompt.substring(0, MAX_PROMPT_CHARS) + '...[truncated]'
+      : prompt;
+
     try {
       switch (provider) {
         case 'gemini':
-          return await this.generateGeminiChat(apiKey, prompt, systemPrompt);
+          return await this.generateGeminiChat(apiKey, truncatedPrompt, systemPrompt);
         case 'openrouter':
-          return await this.generateOpenCompatibleChat(apiKey, 'https://openrouter.ai/api/v1', 'google/gemini-flash-1.5', prompt, systemPrompt);
+          return await this.generateOpenCompatibleChat(apiKey, 'https://openrouter.ai/api/v1', 'google/gemini-flash-1.5', truncatedPrompt, systemPrompt);
         case 'openai':
-          return await this.generateOpenCompatibleChat(apiKey, 'https://api.openai.com/v1', 'gpt-4o', prompt, systemPrompt);
+          return await this.generateOpenCompatibleChat(apiKey, 'https://api.openai.com/v1', 'gpt-4o', truncatedPrompt, systemPrompt);
         case 'groq':
-          return await this.generateOpenCompatibleChat(apiKey, 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile', prompt, systemPrompt);
+          return await this.generateOpenCompatibleChat(apiKey, 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile', truncatedPrompt, systemPrompt);
         case 'anthropic':
-          return await this.generateAnthropicChat(apiKey, prompt, systemPrompt);
+          return await this.generateAnthropicChat(apiKey, truncatedPrompt, systemPrompt);
         case 'kira':
-          return await this.generateKiraChat(apiKey, prompt, systemPrompt);
+          return await this.generateKiraChat(apiKey, truncatedPrompt, systemPrompt);
         default:
           throw new Error(`Provider ${provider} not supported`);
       }
@@ -556,7 +561,7 @@ export class AiService {
       console.warn(`${provider} Chat Error (Attempt ${retryCount}):`, e);
       if (retryCount < 2) {
         await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
-        return this.generateChatResponse(prompt, systemPrompt, retryCount + 1);
+        return this.generateChatResponse(truncatedPrompt, systemPrompt, retryCount + 1);
       }
       throw new Error(`AI Chat Failed after retries: ${e.message}`);
     }
@@ -701,7 +706,10 @@ export class AiService {
     if (webResults && webResults.length > 0) {
       webContext = `\n\n=== ADDITIONAL WEB INFORMATION FROM OFFICIAL SOURCES ===\n`;
       
-      for (const result of webResults.slice(0, 4)) {
+      const MAX_WEB_RESULTS = 2;
+      const MAX_WEB_CHARS = 400;
+      
+      for (const result of webResults.slice(0, MAX_WEB_RESULTS)) {
         let structuredDetails = '';
         if (result.structuredInfo) {
           const si = result.structuredInfo;
@@ -723,13 +731,15 @@ export class AiService {
           }
         }
         
+        const contentPreview = result.content 
+          ? result.content.substring(0, MAX_WEB_CHARS) + (result.content.length > MAX_WEB_CHARS ? '...' : '')
+          : result.snippet || 'No content available';
+        
         webContext += `
-SOURCE: ${result.title}
-DOMAIN: ${result.domain || 'N/A'}
+[${result.domain || 'N/A'}] ${result.title}
 URL: ${result.url}
 ${structuredDetails}
-CONTENT PREVIEW:
-${result.content ? result.content.substring(0, 1500) : result.snippet || 'No content available'}
+${contentPreview}
 ---
 `;
       }
@@ -778,6 +788,12 @@ Please enhance this answer with the additional web information below. Make it mo
     }
   }
 
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+
+  private MAX_SYSTEM_TOKENS = 4000;
+
   /**
    * Build system prompt with RAG context
    */
@@ -785,85 +801,46 @@ Please enhance this answer with the additional web information below. Make it mo
     const context = this.stateService.userContext();
     const relevantDocs = this.stateService.relevantDocs();
 
-    const contextString = relevantDocs.map(d => `
---- DOCUMENT START ---
-Title: ${d.title}
-Ministry/Department: ${d.ministry}
-Document Type: ${d.type}
-Content: ${d.content}
---- DOCUMENT END ---
-    `).join('\n');
+    const MAX_DOC_CHARS = 400;
+    const basePrompt = `You are GovInfo AI for ${context.country} (${context.state || 'National'}). Sector: ${context.sector} | Intent: ${context.intent}
 
-    return `You are GovInfo AI, a specialized compliance intelligence agent for ${context.country} (${context.state || 'National level'}).
-User Sector: ${context.sector}
-User Intent: ${context.intent}
+Provide detailed answers from the provided source documents ONLY. Structure: Overview, Eligibility, Required Documents, Fees, Timeline, How to Apply, Links, Sources.
 
-🎯 YOUR MISSION:
-Provide comprehensive, accurate, and actionable information about government schemes, licenses, permits, policies, and compliance requirements.
+Rules:
+- ONLY use provided sources. If missing, say "Not available in provided documents."
+- Include specific URLs when available.
+- Professional, actionable tone.
+- After answer, append "|||Q1|Q2|Q3" with 3 follow-up questions.
 
-📋 RESPONSE FORMAT - Be Detailed and Informative:
-Your response MUST include these sections:
-1. **OVERVIEW** (2-3 sentences): Brief summary of the topic
-2. **ELIGIBILITY** (bullet points): Who can apply, qualification criteria
-3. **REQUIRED DOCUMENTS** (numbered list): All documents needed
-4. **FEES & CHARGES** (if applicable): Cost involved, payment methods
-5. **TIMELINE** (if applicable): Processing time, validity period
-6. **HOW TO APPLY** (step-by-step): Online/offline process
-7. **IMPORTANT LINKS** (if available): Official portals, forms
-8. **SOURCE REFERENCES**: Cite the government source
+PROVIDED SOURCES:\n`;
 
-⚠️ CRITICAL RULES:
-1. ONLY use information from the provided source documents
-2. If information is not in sources, clearly state "Based on the provided documents, this information is not available"
-3. Do NOT hallucinate or make up information
-4. Always provide actionable steps - tell users exactly what to do
-5. Include specific government portal URLs when available
-6. Use professional but friendly tone
+    let prompt = basePrompt;
+    let currentTokens = this.estimateTokens(prompt);
+    const selectedDocs: string[] = [];
 
-📝 OUTPUT STRUCTURE:
-After your detailed response, append "---FOLLOW_UP---" followed by 3 relevant follow-up questions separated by "|".
+    for (const doc of relevantDocs) {
+      const docChunk = `[${doc.ministry}] ${doc.title} (${doc.type})\n${doc.content.substring(0, MAX_DOC_CHARS)}${doc.content.length > MAX_DOC_CHARS ? '...[truncated]' : ''}\n\n`;
+      const docTokens = this.estimateTokens(docChunk);
+      
+      if (currentTokens + docTokens > this.MAX_SYSTEM_TOKENS) {
+        break;
+      }
+      
+      selectedDocs.push(docChunk);
+      currentTokens += docTokens;
+    }
 
-Example:
-OVERVIEW: The Udyam Registration is a government initiative for MSME businesses...
-ELIGIBILITY: 
-- Manufacturing and service enterprises
-- Investment under ₹50 crore
-- Turnover under ₹250 crore
-
-REQUIRED DOCUMENTS:
-1. Aadhaar card
-2. Business address proof
-3. Category certificate (if SC/ST)
-
-FEES: Free of cost
-
-TIMELINE: Instant registration
-
-HOW TO APPLY:
-1. Visit udyamregistration.gov.in
-2. Click "For New Registration"
-3. Enter Aadhaar and verify
-4. Fill business details
-5. Get Udyam Certificate
-
-SOURCE REFERENCES: Ministry of MSME, Udyam Registration Portal
-
----FOLLOW_UP---
-How to download Udyam certificate? | What are MSME benefits? | Is re-registration required?
-
-PROVIDED SOURCES:
-${contextString}`;
+    return prompt + selectedDocs.join('\n');
   }
 
   /**
    * Parse follow-up actions from response
    */
   private parseFollowUpActions(text: string): { text: string; actions: string[] } {
-    const splitParts = text.split('---FOLLOW_UP---');
+    const splitParts = text.split('|||');
     if (splitParts.length > 1) {
       const cleanText = splitParts[0].trim();
-      const actionsStr = splitParts[1].trim();
-      const actions = actionsStr.split('|').map(s => s.trim()).filter(s => s.length > 0);
+      const actions = splitParts.slice(1).map(s => s.trim()).filter(s => s.length > 0);
       return { text: cleanText, actions };
     }
     return { text, actions: [] };

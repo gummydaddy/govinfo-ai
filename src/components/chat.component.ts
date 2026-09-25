@@ -533,13 +533,15 @@ export class ChatComponent {
         const result = await this.extractionService.extractText(file);
         
         if (result.success && result.text) {
-          // Add attachment with extracted text embedded
-          const extractedPreview = result.text.substring(0, 500) + (result.text.length > 500 ? '...' : '');
+          const MAX_ATTACHMENT_CHARS = 2000;
+          const truncatedText = result.text.length > MAX_ATTACHMENT_CHARS
+            ? result.text.substring(0, MAX_ATTACHMENT_CHARS) + '...[truncated]'
+            : result.text;
           
           this.currentAttachments.push({
             name: file.name,
             mimeType: file.type,
-            data: result.text, // Store extracted text as data
+            data: truncatedText,
             size: file.size
           });
           
