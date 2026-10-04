@@ -1,6 +1,7 @@
 // src/services/ai.service.ts - Enhanced Multi-Provider AI Service with Knowledgebase & Web Search
 
 import { Injectable, inject } from '@angular/core';
+import axios from 'axios';
 import { StateService } from './state.services.js';
 import { KnowledgebaseService } from './knowledgebase.service.js';
 import { Attachment, AIResponse } from '../models/interfaces';
@@ -141,6 +142,34 @@ export class AiService {
       return { apiKey: genericKey, provider: this.detectProviderFromKey(genericKey) };
     }
     throw new Error("No API Key configured. Please set VITE_API_KEY or specific provider keys.");
+  }
+
+  private getBackendUrl(): string {
+    if (typeof window !== 'undefined' && (window as any).BACKEND_URL) {
+      return (window as any).BACKEND_URL;
+    }
+    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+      return 'http://localhost:3001';
+    }
+    return '/api/ai/chat';
+  }
+
+  private async callAI(provider: AIProvider, userMessage: string, attachments: Attachment[], useSearch: boolean, systemPrompt: string): Promise<AIResponse> {
+    const SERVER_URL = this.getBackendUrl();
+
+    try {
+      const response = await axios.post(`${SERVER_URL}`, {
+        provider,
+        userMessage,
+        attachments,
+        useSearch,
+        systemPrompt
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('AI API Error:', error);
+      return { text: `AI Error: ${error.message}`, error: error.message };
+    }
   }
 
   async generateContent<T>(
@@ -510,13 +539,13 @@ export class AiService {
 
     try {
       const systemPrompt = this.buildSystemPrompt();
-      const responseText = await this.generateChatResponse(userMessage, systemPrompt);
-      
-      const response: AIResponse = {
-        text: responseText,
-        suggestedActions: [],
-        sources: []
-      };
+      const response = await this.callAI(
+        preferredProvider || 'gemini',
+        userMessage,
+        attachments,
+        useSearch,
+        systemPrompt
+      );
 
       if (!response.error && attachments.length === 0) {
         this.learnFromResponse(userMessage, response);
@@ -762,13 +791,14 @@ Please enhance this answer with the additional web information below. Make it mo
 
     try {
       const systemPrompt = this.buildSystemPrompt();
-      const responseText = await this.generateChatResponse(enhancedPrompt, systemPrompt);
+      const response = await this.callAI(
+        preferredProvider || 'gemini',
+        enhancedPrompt,
+        attachments,
+        true,
+        systemPrompt
+      );
       
-      const response: AIResponse = {
-        text: responseText,
-        suggestedActions: []
-      };
-
       if (response && !response.error && webResults) {
         response.sources = webResults.map(r => ({
           web: {
