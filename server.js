@@ -357,12 +357,13 @@ function getEnvKey(provider) {
     case 'openai': return process.env.OPENAI_API_KEY;
     case 'anthropic': return process.env.ANTHROPIC_API_KEY;
     case 'groq': return process.env.GROQ_API_KEY;
+    case 'kira': return process.env.KIRA_API_KEY;
     default: return null;
   }
 }
 
 function getFirstConfiguredProvider() {
-  const providers = ['gemini', 'openrouter', 'openai', 'anthropic', 'groq'];
+  const providers = ['gemini', 'openrouter', 'openai', 'anthropic', 'groq', 'kira'];
   for (const p of providers) {
     if (getEnvKey(p)) return p;
   }
@@ -452,7 +453,7 @@ function parseFollowUpActions(text) {
 }
 
 app.post('/api/ai/chat', async (req, res) => {
-  const { provider, userMessage, attachments, useSearch, officialDocs, relevantDocs, userContext } = req.body;
+  const { provider, userMessage, attachments, useSearch, officialDocs, relevantDocs, userContext, systemPrompt } = req.body;
 
   if (!userMessage) {
     return res.status(400).json({ error: 'userMessage is required' });
@@ -464,24 +465,27 @@ app.post('/api/ai/chat', async (req, res) => {
       return res.json({ text: 'ERROR: No AI provider configured on server.', error: 'No API key' });
     }
 
-    const systemPrompt = buildSystemPrompt(userContext, officialDocs, relevantDocs);
+    const finalSystemPrompt = systemPrompt || buildSystemPrompt(userContext, relevantDocs);
     let response;
 
     switch (configuredProvider) {
       case 'gemini':
-        response = await callGemini(systemPrompt, userMessage, attachments);
+        response = await callGemini(finalSystemPrompt, userMessage, attachments);
         break;
       case 'openrouter':
-        response = await callOpenRouter(systemPrompt, userMessage, attachments);
+        response = await callOpenRouter(finalSystemPrompt, userMessage, attachments);
         break;
       case 'openai':
-        response = await callOpenAI(systemPrompt, userMessage, attachments);
+        response = await callOpenAI(finalSystemPrompt, userMessage, attachments);
         break;
       case 'anthropic':
-        response = await callAnthropic(systemPrompt, userMessage, attachments);
+        response = await callAnthropic(finalSystemPrompt, userMessage, attachments);
         break;
       case 'groq':
-        response = await callGroq(systemPrompt, userMessage, attachments);
+        response = await callGroq(finalSystemPrompt, userMessage, attachments);
+        break;
+      case 'kira':
+        response = await callKira(finalSystemPrompt, userMessage);
         break;
       default:
         return res.json({ text: 'Unknown provider', error: 'Invalid provider' });
@@ -630,6 +634,40 @@ async function callGroq(systemPrompt, userMessage, attachments) {
   return { text: parsed.text, suggestedActions: parsed.actions };
 }
 
+async function callKira(systemPrompt, userMessage) {
+  const apiKey = process.env.KIRA_API_KEY;
+  if (!apiKey) return { text: 'Kira API key not configured', error: 'No key' };
+
+  const model = process.env.KIRA_MODEL || 'kira-mini-1.0';
+
+  const response = await fetch('https://kiraai.vn/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ],
+      temperature: 0.1
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || `Kira Error: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const rawText = data.choices?.[0]?.message?.content || 'No response';
+  const parsed = parseFollowUpActions(rawText);
+
+  return { text: parsed.text, suggestedActions: parsed.actions };
+}
+
 // Start server
 app.listen(PORT, () => {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -647,6 +685,9 @@ app.listen(PORT, () => {
 ║  - POST /api/ai/chat              AI Chat (server-side)   ║
 ║  - GET  /api/health                Health check          ║
 ║  - GET  /api/status                Server status          ║
+║                                                            ║
+║  Supported Providers:                                      ║
+║  gemini, openrouter, openai, anthropic, groq, kira        ║
 ║                                                            ║
 ║  Usage from Angular:                                       ║
 ║  ${serverUrl}/api/scrape?url=https://...       ║
