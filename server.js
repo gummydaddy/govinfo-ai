@@ -22,19 +22,36 @@ const allowedOrigins = [
   'https://govinfo-ai.onrender.com'
 ];
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.indexOf(origin) !== -1) return true;
+  if (origin.endsWith('.vercel.app')) return true;
+  if (origin.endsWith('.onrender.com')) return true;
+  return false;
+}
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
     }
-    return callback(null, true);
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With']
+}));
+
+app.options('*', cors({
+  origin: function (origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With']
 }));
 
 app.use(express.json());
